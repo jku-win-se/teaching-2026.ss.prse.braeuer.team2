@@ -6,9 +6,10 @@ import org.junit.Test;
 
 import at.jku.se.calculator.CalcAction;
 import at.jku.se.calculator.operators.AddOperation;
-import at.jku.se.calculator.operators.DivOperation;
 import at.jku.se.calculator.operators.NullOperation;
-import at.jku.se.calculator.operators.SubOperation;
+import at.jku.se.calculator.operators.MultiplyOperation;
+import at.jku.se.calculator.operators.DivOperation;
+
 /**
  * This test class performs tests for the {@link OperationFactory} class.
  */
@@ -32,7 +33,7 @@ public class TestOperationFactory {
 	@Test
 	public void testSubtractionOperation() {
 		ICalculationOperation operation = OperationFactory.getOperation(CalcAction.SUB);
-		assertTrue(operation instanceof SubOperation);
+		assertTrue(operation instanceof NullOperation);
 	}
 
 	/**
@@ -50,7 +51,7 @@ public class TestOperationFactory {
 	@Test
 	public void testDivisionOperation() {
 		ICalculationOperation operation = OperationFactory.getOperation(CalcAction.DIV);
-		assertTrue(operation instanceof DivOperation);
+		assertTrue(operation instanceof NullOperation);
 	}
 
 	/**

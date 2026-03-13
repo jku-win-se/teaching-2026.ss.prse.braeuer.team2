@@ -7,6 +7,8 @@ import at.jku.se.calculator.CalcAction;
 import at.jku.se.calculator.operators.AddOperation;
 import at.jku.se.calculator.operators.DivOperation;
 import at.jku.se.calculator.operators.NullOperation;
+import at.jku.se.calculator.operators.MultiplyOperation;
+
 import at.jku.se.calculator.operators.SubOperation;
 
 /**
@@ -37,11 +39,11 @@ public class OperationFactory {
 		case ADD:
 			return new AddOperation();
 		case DIV:
-			return new DivOperation();
+			return new NullOperation();
 		case MULT:
 			return new NullOperation();
 		case SUB:
-			return new SubOperation();
+			return new NullOperation();
 		default:
 			LOGGER.error("Sorry this operation is not yet implemented!");
 			return new NullOperation();
