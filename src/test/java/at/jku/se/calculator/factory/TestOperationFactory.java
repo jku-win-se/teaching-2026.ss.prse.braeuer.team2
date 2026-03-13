@@ -6,6 +6,7 @@ import org.junit.Test;
 
 import at.jku.se.calculator.CalcAction;
 import at.jku.se.calculator.operators.AddOperation;
+import at.jku.se.calculator.operators.DivOperation;
 import at.jku.se.calculator.operators.NullOperation;
 
 /**
@@ -49,7 +50,7 @@ public class TestOperationFactory {
 	@Test
 	public void testDivisionOperation() {
 		ICalculationOperation operation = OperationFactory.getOperation(CalcAction.DIV);
-		assertTrue(operation instanceof NullOperation);
+		assertTrue(operation instanceof DivOperation);
 	}
 
 	/**
