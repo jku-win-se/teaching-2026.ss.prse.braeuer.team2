@@ -7,6 +7,7 @@ import org.junit.Test;
 import at.jku.se.calculator.CalcAction;
 import at.jku.se.calculator.operators.AddOperation;
 import at.jku.se.calculator.operators.NullOperation;
+import at.jku.se.calculator.operators.MultiplyOperation;
 
 /**
  * This test class performs tests for the {@link OperationFactory} class.
@@ -40,7 +41,7 @@ public class TestOperationFactory {
 	@Test
 	public void testMultiplicationOperation() {
 		ICalculationOperation operation = OperationFactory.getOperation(CalcAction.MULT);
-		assertTrue(operation instanceof NullOperation);
+		assertTrue(operation instanceof MultiplyOperation);
 	}
 
 	/**
