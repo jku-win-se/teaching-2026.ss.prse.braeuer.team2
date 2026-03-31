@@ -158,6 +158,7 @@ public class DeviceTest {
         assertTrue(device.isOn());
     }
 
+    @Test
     public void setValue_thermostat_negativeValue() {
         Device device = new Device("3", "Heater", DeviceType.THERMOSTAT);
 
