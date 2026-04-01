@@ -167,6 +167,7 @@ public class DeviceTest {
         assertEquals(-5, device.getValue(), 0.0001);
     }
 
+    // Gerätestatus Tests
     @Test
     public void getStatusText_switchOff_returnsOff() {
         Device device = new Device("1", "Lamp", DeviceType.SWITCH);
@@ -181,6 +182,16 @@ public class DeviceTest {
         device.toggle();
 
         assertEquals("On", device.getStatusText());
+    }
+
+    @Test
+    public void getStatusText_switchOff_returnsOn() {
+        Device device = new Device("1", "Lamp", DeviceType.SWITCH);
+
+        device.toggle();
+        device.toggle();
+
+        assertEquals("Off", device.getStatusText());
     }
 
     @Test
@@ -226,6 +237,23 @@ public class DeviceTest {
         device.setValue(18.3);
 
         assertEquals("18.3", device.getStatusText());
+    }
+
+    // Gerät umbennen Tests
+    @Test
+    public void rename_changesDeviceName() {
+        Device device = new Device("1", "Old Lamp", DeviceType.SWITCH);
+
+        device.rename("New Lamp");
+
+        assertEquals("New Lamp", device.getName());
+    }
+
+    @Test
+    public void rename_blankName_throwsException() {
+        Device device = new Device("1", "Lamp", DeviceType.SWITCH);
+
+        assertThrows(IllegalArgumentException.class, () -> device.rename("   "));
     }
 
 }
