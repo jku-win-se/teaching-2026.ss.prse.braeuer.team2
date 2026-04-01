@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Slider?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.FlowPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="at.jku.se.smarthome.controller.DashboardController"
+            prefWidth="1100"
+            prefHeight="700"
+            style="-fx-background-color: #f7f5f2;">
+
+    <left>
+        <VBox spacing="18"
+              prefWidth="200"
+              style="-fx-background-color: #f0ede8; -fx-padding: 24;">
+            <children>
+                <Label text="homeE"
+                       style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
+
+                <VBox spacing="10">
+                    <children>
+                        <Button text="Dashboard"
+                                prefWidth="150"
+                                style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
+                        <Button text="Rules"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Schedules"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Activity"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Energy"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                    </children>
+                </VBox>
+            </children>
+        </VBox>
+    </left>
+
+    <center>
+        <VBox spacing="24" style="-fx-padding: 28;">
+            <children>
+                <HBox>
+                    <children>
+                        <Label text="Dashboard"
+                               style="-fx-font-size: 28; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
+                        <Region HBox.hgrow="ALWAYS" />
+                        <Button text="+ Room"
+                                style="-fx-background-color: transparent; -fx-text-fill: #2b2b2b;" />
+                        <Button text="+ Device"
+                                style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
+                    </children>
+                </HBox>
+
+                <VBox spacing="14">
+                    <children>
+                        <Label text="Living Room"
+                               style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
+
+                        <FlowPane hgap="16" vgap="16">
+
+                            <VBox spacing="12"
+                                  prefWidth="240"
+                                  prefHeight="140"
+                                  style="-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 18;">
+                                <children>
+                                    <HBox>
+                                        <children>
+                                            <Label text="Ceiling Light"
+                                                   style="-fx-font-size: 18; -fx-text-fill: #2b2b2b;" />
+                                            <Region HBox.hgrow="ALWAYS" />
+                                            <Button fx:id="toggleButton"
+                                                    onAction="#toggleDevice"
+                                                    style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 20;" />
+                                        </children>
+                                    </HBox>
+                                    <Label fx:id="switchStatus"
+                                           style="-fx-font-size: 16; -fx-text-fill: #8a6f5a;" />
+                                </children>
+                            </VBox>
+
+                            <VBox spacing="12"
+                                  prefWidth="240"
+                                  prefHeight="140"
+                                  style="-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 18;">
+                                <children>
+                                    <Label text="Floor Lamp"
+                                           style="-fx-font-size: 18; -fx-text-fill: #2b2b2b;" />
+                                    <Label fx:id="dimmerStatus"
+                                           style="-fx-font-size: 16; -fx-text-fill: #8a6f5a;" />
+                                    <Slider fx:id="dimmerSlider"
+                                            min="0" max="100"
+                                            majorTickUnit="1"
+                                            minorTickCount="0"
+                                            blockIncrement="1"
+                                            snapToTicks="true"
+                                            onMouseReleased="#changeDeviceValue" />
+                                </children>
+                            </VBox>
+
+                            <VBox spacing="12"
+                                  prefWidth="240"
+                                  prefHeight="140"
+                                  style="-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 18;">
+                                <children>
+                                    <Label text="Thermostat"
+                                           style="-fx-font-size: 18; -fx-text-fill: #2b2b2b;" />
+                                    <Label fx:id="thermostatStatus"
+                                           style="-fx-font-size: 16; -fx-text-fill: #8a6f5a;" />
+                                    <Slider fx:id="thermostatSlider"
+                                            min="0" max="40"
+                                            majorTickUnit="1"
+                                            minorTickCount="0"
+                                            blockIncrement="1"
+                                            snapToTicks="true"
+                                            onMouseReleased="#changeDeviceValue" />
+                                </children>
+                            </VBox>
+
+                        </FlowPane>
+                    </children>
+                </VBox>
+            </children>
+        </VBox>
+    </center>
+</BorderPane>
