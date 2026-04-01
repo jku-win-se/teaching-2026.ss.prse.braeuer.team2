@@ -167,4 +167,65 @@ public class DeviceTest {
         assertEquals(-5, device.getValue(), 0.0001);
     }
 
+    @Test
+    public void getStatusText_switchOff_returnsOff() {
+        Device device = new Device("1", "Lamp", DeviceType.SWITCH);
+
+        assertEquals("Off", device.getStatusText());
+    }
+
+    @Test
+    public void getStatusText_switchOn_returnsOn() {
+        Device device = new Device("1", "Lamp", DeviceType.SWITCH);
+
+        device.toggle();
+
+        assertEquals("On", device.getStatusText());
+    }
+
+    @Test
+    public void getStatusText_dimmer_returnsValueWithUnit() {
+        Device device = new Device("2", "Dimmer", DeviceType.DIMMER);
+
+        device.setValue(50);
+
+        assertEquals("50.0 %", device.getStatusText());
+    }
+
+    @Test
+    public void getStatusText_thermostat_returnsValueWithUnit() {
+        Device device = new Device("3", "Heater", DeviceType.THERMOSTAT);
+
+        device.setValue(22.5);
+
+        assertEquals("22.5 °C", device.getStatusText());
+    }
+
+    @Test
+    public void getStatusText_blindClosed_returnsClosed() {
+        Device device = new Device("4", "Blind", DeviceType.BLIND);
+
+        device.setValue(0);
+
+        assertEquals("Closed", device.getStatusText());
+    }
+
+    @Test
+    public void getStatusText_blindOpen_returnsOpen() {
+        Device device = new Device("4", "Blind", DeviceType.BLIND);
+
+        device.setValue(100);
+
+        assertEquals("Open", device.getStatusText());
+    }
+
+    @Test
+    public void getStatusText_sensor_returnsValue() {
+        Device device = new Device("5", "Sensor", DeviceType.SENSOR);
+
+        device.setValue(18.3);
+
+        assertEquals("18.3", device.getStatusText());
+    }
+
 }

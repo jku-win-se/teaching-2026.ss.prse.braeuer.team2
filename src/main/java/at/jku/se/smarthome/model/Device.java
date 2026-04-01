@@ -57,7 +57,6 @@ public class Device {
         }
     }
 
-
     public String getId() {
         return id;
     }
@@ -81,7 +80,6 @@ public class Device {
     public String getUnit() {
         return unit;
     }
-
 
     public void toggle() {
         if (type != DeviceType.SWITCH) {
@@ -125,6 +123,23 @@ public class Device {
     private void setSensorValue(double value) {
         this.value = value;
         this.isOn = true;
+    }
+
+    public String getStatusText() {
+        switch (type) {
+            case SWITCH:
+                return isOn ? "On" : "Off";
+            case DIMMER:
+                return value + " " + unit;
+            case THERMOSTAT:
+                return value + " " + unit;
+            case BLIND:
+                return isOn ? "Open" : "Closed";
+            case SENSOR:
+                return String.valueOf(value);
+            default:
+                throw new IllegalStateException("Unexpected device type: " + type);
+        }
     }
 
 }
