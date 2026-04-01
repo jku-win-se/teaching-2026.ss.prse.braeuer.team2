@@ -81,6 +81,15 @@ public class Device {
         return unit;
     }
 
+
+    //Gerät umbennen
+    public void rename (String newName) {
+        if (newName == null || newName.isBlank()) {
+            throw new IllegalArgumentException("Device name must not be empty!");
+        }
+        this.name = newName.trim();
+    }
+
     public void toggle() {
         if (type != DeviceType.SWITCH) {
             throw new IllegalStateException("Toggle is only supported for SWITCH devices");
@@ -125,6 +134,8 @@ public class Device {
         this.isOn = true;
     }
 
+
+    //Gerätestatus anzeigen
     public String getStatusText() {
         switch (type) {
             case SWITCH:
