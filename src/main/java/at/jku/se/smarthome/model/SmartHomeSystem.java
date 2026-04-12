@@ -16,9 +16,12 @@ public class SmartHomeSystem {
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     private static final String DEFAULT_DATABASE_URL = "jdbc:sqlite:smarthome.db";
+    private static final SmartHomeSystem PERSISTENT_SYSTEM =
+            new SmartHomeSystem(new SQLiteUserRepository(DEFAULT_DATABASE_URL));
 
     private final List<Room> rooms;
     private final UserRepository userRepository;
+    private final UserSession userSession;
 
     public SmartHomeSystem() {
         this(new InMemoryUserRepository());
@@ -32,6 +35,7 @@ public class SmartHomeSystem {
     public SmartHomeSystem(UserRepository userRepository) {
         this.rooms = new ArrayList<>();
         this.userRepository = userRepository;
+        this.userSession = new UserSession();
     }
 
     /**
@@ -40,7 +44,7 @@ public class SmartHomeSystem {
      * @return a smart home system with SQLite persistence for users
      */
     public static SmartHomeSystem createPersistentSystem() {
-        return new SmartHomeSystem(new SQLiteUserRepository(DEFAULT_DATABASE_URL));
+        return PERSISTENT_SYSTEM;
     }
 
     public void addRoom(Room room) {
@@ -48,6 +52,13 @@ public class SmartHomeSystem {
             throw new IllegalArgumentException("Room must not be null");
         }
         rooms.add(room);
+    }
+
+    /**
+     * Removes all currently stored rooms from the system.
+     */
+    public void clearRooms() {
+        rooms.clear();
     }
 
     public void renameDevice(String deviceId, String newName) {
@@ -87,6 +98,54 @@ public class SmartHomeSystem {
 
         User user = new User(normalizedEmail, PasswordHasher.hash(password));
         return userRepository.save(user);
+    }
+
+    /**
+     * Logs in a registered user with email address and password.
+     *
+     * @param email the email address of the user
+     * @param password the plain text password of the user
+     * @return the authenticated user
+     */
+    public User loginUser(String email, String password) {
+        String normalizedEmail = validateEmail(email);
+
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Password must not be blank");
+        }
+
+        User user = userRepository.findByEmail(normalizedEmail);
+        if (user == null || !PasswordHasher.verify(password, user.getPasswordHash())) {
+            throw new IllegalArgumentException("Invalid email or password");
+        }
+
+        userSession.login(user);
+        return user;
+    }
+
+    /**
+     * Ends the current authenticated user session.
+     */
+    public void logoutUser() {
+        userSession.logout();
+    }
+
+    /**
+     * Returns whether a user is currently logged in.
+     *
+     * @return {@code true} if a user is logged in, otherwise {@code false}
+     */
+    public boolean isUserLoggedIn() {
+        return userSession.isLoggedIn();
+    }
+
+    /**
+     * Returns the currently logged in user.
+     *
+     * @return the authenticated user, or {@code null} if no user is logged in
+     */
+    public User getLoggedInUser() {
+        return userSession.getCurrentUser();
     }
 
     /**

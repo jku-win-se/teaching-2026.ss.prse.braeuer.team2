@@ -5,13 +5,17 @@ import at.jku.se.smarthome.model.DeviceType;
 import at.jku.se.smarthome.model.Room;
 import at.jku.se.smarthome.model.SmartHomeSystem;
 import javafx.event.Event;
+import javafx.fxml.FXMLLoader;
 import javafx.fxml.FXML;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
 
+import java.io.IOException;
 import java.util.Optional;
 
 public class DashboardController {
@@ -64,7 +68,8 @@ public class DashboardController {
     }
 
     public void loadRooms() {
-        system = new SmartHomeSystem();
+        system = SmartHomeSystem.createPersistentSystem();
+        system.clearRooms();
         livingRoom = new Room("r1", "Living Room");
         system.addRoom(livingRoom);
 
@@ -80,6 +85,22 @@ public class DashboardController {
         thermostatDevice.setValue(22);
 
         updateUI();
+    }
+
+    @FXML
+    public void logout() {
+        system.logoutUser();
+
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    DashboardController.class.getResource("/at/jku/se/smarthome/fxml/auth-view.fxml")
+            );
+            Scene scene = new Scene(loader.load(), 900, 600);
+            Stage stage = (Stage) toggleButton.getScene().getWindow();
+            stage.setScene(scene);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to open login view", exception);
+        }
     }
 
     @FXML
