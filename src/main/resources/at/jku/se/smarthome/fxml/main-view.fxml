@@ -54,6 +54,9 @@
                         <Label text="Dashboard"
                                style="-fx-font-size: 28; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
                         <Region HBox.hgrow="ALWAYS" />
+                        <Button text="Logout"
+                                onAction="#logout"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="+ Room"
                                 style="-fx-background-color: transparent; -fx-text-fill: #2b2b2b;" />
                         <Button text="+ Device"

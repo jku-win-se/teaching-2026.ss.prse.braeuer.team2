@@ -10,7 +10,7 @@ public class Main extends Application {
     @Override
     public void start(Stage stage) throws Exception {
         FXMLLoader fxmlLoader = new FXMLLoader(
-                Main.class.getResource("/at/jku/se/smarthome/fxml/registration-view.fxml")
+                Main.class.getResource("/at/jku/se/smarthome/fxml/auth-view.fxml")
         );
 
         Scene scene = new Scene(fxmlLoader.load(), 900, 600);
