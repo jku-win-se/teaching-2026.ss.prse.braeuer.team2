@@ -2,6 +2,7 @@ package at.jku.se.smarthome.model;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
@@ -175,5 +176,50 @@ public class SmartHomeSystemTest {
 
         system.loginUser("owner2@example.com", "password123");
         assertTrue(system.getRooms().isEmpty());
+    }
+
+    @Test
+    public void createDevice_validInput_addsDeviceToSelectedRoom() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+
+        Device device = system.createDevice(room.getId(), "Ceiling Light", DeviceType.SWITCH);
+
+        assertNotNull(device);
+        assertEquals("Ceiling Light", device.getName());
+        assertEquals(DeviceType.SWITCH, device.getType());
+        assertEquals(1, room.getDevices().size());
+        assertEquals(device.getId(), room.getDevices().get(0).getId());
+    }
+
+    @Test
+    public void createDevice_unknownRoom_throwsException() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> system.createDevice("missing-room", "Thermostat", DeviceType.THERMOSTAT));
+    }
+
+    @Test
+    public void createDevice_withoutLogin_throwsException() {
+        SmartHomeSystem system = new SmartHomeSystem();
+
+        assertThrows(IllegalStateException.class,
+                () -> system.createDevice("room-id", "Sensor", DeviceType.SENSOR));
+    }
+
+    @Test
+    public void createDevice_blankName_throwsException() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Kitchen");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> system.createDevice(room.getId(), "   ", DeviceType.DIMMER));
     }
 }

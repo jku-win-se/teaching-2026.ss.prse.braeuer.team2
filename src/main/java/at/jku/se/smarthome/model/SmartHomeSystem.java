@@ -138,6 +138,26 @@ public class SmartHomeSystem {
         return null;
     }
 
+    /**
+     * Creates a device and assigns it to a room of the authenticated user.
+     *
+     * @param roomId the target room id
+     * @param deviceName the device name
+     * @param deviceType the device type
+     * @return the created device
+     */
+    public Device createDevice(String roomId, String deviceName, DeviceType deviceType) {
+        requireAuthenticatedUser();
+        Room room = findRoomById(roomId);
+        if (room == null) {
+            throw new IllegalArgumentException("Room not found");
+        }
+
+        Device device = new Device(UUID.randomUUID().toString(), deviceName, deviceType);
+        room.addDevice(device);
+        return device;
+    }
+
     public void renameDevice(String deviceId, String newName) {
         Device device = findDeviceById(deviceId);
         if (device == null) {
