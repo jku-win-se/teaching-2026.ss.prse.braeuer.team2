@@ -1,6 +1,7 @@
 package at.jku.se.smarthome.model;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class Room {
@@ -24,6 +25,21 @@ public class Room {
 
     public String getId() {
         return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void rename(String newName) {
+        if (newName == null || newName.isBlank()) {
+            throw new IllegalArgumentException("Room name must not be empty");
+        }
+        this.name = newName.trim();
+    }
+
+    public List<Device> getDevices() {
+        return Collections.unmodifiableList(devices);
     }
 
     public void addDevice(Device device) {

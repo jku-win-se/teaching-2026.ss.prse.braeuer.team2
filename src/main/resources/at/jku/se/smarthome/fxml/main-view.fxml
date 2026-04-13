@@ -2,9 +2,8 @@
 
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
-<?import javafx.scene.control.Slider?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.layout.BorderPane?>
-<?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
@@ -58,115 +57,24 @@
                                 onAction="#logout"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="+ Room"
-                                style="-fx-background-color: transparent; -fx-text-fill: #2b2b2b;" />
-                        <Button text="+ Device"
+                                onAction="#createRoom"
                                 style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                     </children>
                 </HBox>
 
                 <VBox spacing="14">
                     <children>
-                        <Label text="Living Room"
+                        <Label text="Rooms"
                                style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
 
-                        <FlowPane hgap="16" vgap="16">
-
-                            <!-- Switch Card -->
-                            <VBox fx:id="switchCard"
-                                  spacing="12"
-                                  prefWidth="240"
-                                  prefHeight="180"
-                                  style="-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 18;">
-                                <children>
-                                    <HBox spacing="6">
-                                        <children>
-                                            <Label fx:id="switchName"
-                                                   text="Ceiling Light"
-                                                   style="-fx-font-size: 18; -fx-text-fill: #2b2b2b;" />
-                                            <Region HBox.hgrow="ALWAYS" />
-                                            <Button text="Rename"
-                                                    onAction="#renameSwitchDevice"
-                                                    style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
-                                            <Button text="Delete"
-                                                    onAction="#removeSwitchDevice"
-                                                    style="-fx-background-color: transparent; -fx-text-fill: #b04a2f;" />
-                                        </children>
-                                    </HBox>
-                                    <Button fx:id="toggleButton"
-                                            onAction="#toggleDevice"
-                                            style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 20;" />
-                                    <Label fx:id="switchStatus"
-                                           style="-fx-font-size: 16; -fx-text-fill: #8a6f5a;" />
-                                </children>
-                            </VBox>
-
-                            <!-- Dimmer Card -->
-                            <VBox fx:id="dimmerCard"
-                                  spacing="12"
-                                  prefWidth="240"
-                                  prefHeight="180"
-                                  style="-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 18;">
-                                <children>
-                                    <HBox spacing="6">
-                                        <children>
-                                            <Label fx:id="dimmerName"
-                                                   text="Floor Lamp"
-                                                   style="-fx-font-size: 18; -fx-text-fill: #2b2b2b;" />
-                                            <Region HBox.hgrow="ALWAYS" />
-                                            <Button text="Rename"
-                                                    onAction="#renameDimmerDevice"
-                                                    style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
-                                            <Button text="Delete"
-                                                    onAction="#removeDimmerDevice"
-                                                    style="-fx-background-color: transparent; -fx-text-fill: #b04a2f;" />
-                                        </children>
-                                    </HBox>
-                                    <Label fx:id="dimmerStatus"
-                                           style="-fx-font-size: 16; -fx-text-fill: #8a6f5a;" />
-                                    <Slider fx:id="dimmerSlider"
-                                            min="0" max="100"
-                                            majorTickUnit="1"
-                                            minorTickCount="0"
-                                            blockIncrement="1"
-                                            snapToTicks="true"
-                                            onMouseReleased="#changeDeviceValue" />
-                                </children>
-                            </VBox>
-
-                            <!-- Thermostat Card -->
-                            <VBox fx:id="thermostatCard"
-                                  spacing="12"
-                                  prefWidth="240"
-                                  prefHeight="180"
-                                  style="-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 18;">
-                                <children>
-                                    <HBox spacing="6">
-                                        <children>
-                                            <Label fx:id="thermostatName"
-                                                   text="Thermostat"
-                                                   style="-fx-font-size: 18; -fx-text-fill: #2b2b2b;" />
-                                            <Region HBox.hgrow="ALWAYS" />
-                                            <Button text="Rename"
-                                                    onAction="#renameThermostatDevice"
-                                                    style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
-                                            <Button text="Delete"
-                                                    onAction="#removeThermostatDevice"
-                                                    style="-fx-background-color: transparent; -fx-text-fill: #b04a2f;" />
-                                        </children>
-                                    </HBox>
-                                    <Label fx:id="thermostatStatus"
-                                           style="-fx-font-size: 16; -fx-text-fill: #8a6f5a;" />
-                                    <Slider fx:id="thermostatSlider"
-                                            min="0" max="40"
-                                            majorTickUnit="1"
-                                            minorTickCount="0"
-                                            blockIncrement="1"
-                                            snapToTicks="true"
-                                            onMouseReleased="#changeDeviceValue" />
-                                </children>
-                            </VBox>
-
-                        </FlowPane>
+                        <ScrollPane fitToWidth="true"
+                                    style="-fx-background-color: transparent; -fx-background: transparent;">
+                            <content>
+                                <VBox fx:id="roomListContainer"
+                                      spacing="10"
+                                      style="-fx-padding: 2;" />
+                            </content>
+                        </ScrollPane>
                     </children>
                 </VBox>
             </children>
