@@ -4,7 +4,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>at.jku.se</groupId>
-	<artifactId>calculator</artifactId>
+	<artifactId>smarthome-orchestrator</artifactId>
 	<version>0.0.1.beta</version>
 	<properties>
 		<maven.compiler.target>21</maven.compiler.target>
@@ -21,7 +21,7 @@
 						<manifest>
 							<addClasspath>true</addClasspath>
 							<classpathPrefix>lib/</classpathPrefix>
-							<mainClass>at.jku.se.calculator.SimpleCalculator</mainClass>
+							<mainClass>at.jku.se.smarthome.Main</mainClass>
 						</manifest>
 					</archive>
 				</configuration>

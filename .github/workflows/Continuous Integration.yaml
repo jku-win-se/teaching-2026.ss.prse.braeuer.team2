@@ -57,6 +57,5 @@ jobs:
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: calculator-jar
+          name: smarthome-orchestrator-jar
           path: target/*.jar
-
