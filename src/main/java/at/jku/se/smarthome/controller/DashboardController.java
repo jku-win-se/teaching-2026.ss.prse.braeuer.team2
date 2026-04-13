@@ -1,17 +1,18 @@
 package at.jku.se.smarthome.controller;
 
-import at.jku.se.smarthome.model.Device;
-import at.jku.se.smarthome.model.DeviceType;
 import at.jku.se.smarthome.model.Room;
 import at.jku.se.smarthome.model.SmartHomeSystem;
-import javafx.event.Event;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.FXML;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.Slider;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
@@ -21,195 +22,120 @@ import java.util.Optional;
 public class DashboardController {
 
     private SmartHomeSystem system;
-    private Room livingRoom;
-
-    private Device switchDevice;
-    private Device dimmerDevice;
-    private Device thermostatDevice;
 
     @FXML
-    private VBox switchCard;
-
-    @FXML
-    private VBox dimmerCard;
-
-    @FXML
-    private VBox thermostatCard;
-
-    @FXML
-    private Label switchName;
-
-    @FXML
-    private Label dimmerName;
-
-    @FXML
-    private Label thermostatName;
-
-    @FXML
-    private Button toggleButton;
-
-    @FXML
-    private Label switchStatus;
-
-    @FXML
-    private Slider dimmerSlider;
-
-    @FXML
-    private Label dimmerStatus;
-
-    @FXML
-    private Slider thermostatSlider;
-
-    @FXML
-    private Label thermostatStatus;
+    private VBox roomListContainer;
 
     public void initialize() {
-        loadRooms();
-    }
-
-    public void loadRooms() {
         system = SmartHomeSystem.createPersistentSystem();
-        system.clearRooms();
-        livingRoom = new Room("r1", "Living Room");
-        system.addRoom(livingRoom);
-
-        switchDevice = new Device("1", "Ceiling Light", DeviceType.SWITCH);
-        dimmerDevice = new Device("2", "Floor Lamp", DeviceType.DIMMER);
-        thermostatDevice = new Device("3", "Thermostat", DeviceType.THERMOSTAT);
-
-        livingRoom.addDevice(switchDevice);
-        livingRoom.addDevice(dimmerDevice);
-        livingRoom.addDevice(thermostatDevice);
-
-        dimmerDevice.setValue(75);
-        thermostatDevice.setValue(22);
-
-        updateUI();
+        if (!system.isUserLoggedIn()) {
+            Platform.runLater(this::openAuthView);
+            return;
+        }
+        refreshRoomOverview();
     }
 
     @FXML
     public void logout() {
         system.logoutUser();
+        openAuthView();
+    }
 
+    @FXML
+    public void createRoom() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Create Room");
+        dialog.setHeaderText("Create room");
+        dialog.setContentText("Room name:");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            try {
+                system.createRoom(result.get());
+                refreshRoomOverview();
+            } catch (IllegalArgumentException exception) {
+                showMessage("Invalid room name", exception.getMessage());
+            }
+        }
+    }
+
+    private void refreshRoomOverview() {
+        roomListContainer.getChildren().clear();
+        for (Room room : system.getRooms()) {
+            roomListContainer.getChildren().add(createRoomRow(room));
+        }
+
+        if (system.getRooms().isEmpty()) {
+            Label emptyState = new Label("No rooms yet. Create your first room.");
+            emptyState.setStyle("-fx-text-fill: #6e6257;");
+            roomListContainer.getChildren().add(emptyState);
+        }
+    }
+
+    private HBox createRoomRow(Room room) {
+        Label roomName = new Label(room.getName());
+        roomName.setStyle("-fx-font-size: 16; -fx-text-fill: #2b2b2b;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+
+        Button renameButton = new Button("Rename");
+        renameButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #6e6257;");
+        renameButton.setOnAction(event -> renameRoom(room));
+
+        Button deleteButton = new Button("Delete");
+        deleteButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #b04a2f;");
+        deleteButton.setOnAction(event -> deleteRoom(room));
+
+        HBox row = new HBox(8, roomName, spacer, renameButton, deleteButton);
+        row.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 12 14 12 14;");
+        return row;
+    }
+
+    private void renameRoom(Room room) {
+        TextInputDialog dialog = new TextInputDialog(room.getName());
+        dialog.setTitle("Rename Room");
+        dialog.setHeaderText("Rename room");
+        dialog.setContentText("New name:");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            try {
+                system.renameRoom(room.getId(), result.get());
+                refreshRoomOverview();
+            } catch (IllegalArgumentException exception) {
+                showMessage("Invalid room name", exception.getMessage());
+            }
+        }
+    }
+
+    private void deleteRoom(Room room) {
+        system.removeRoom(room.getId());
+        refreshRoomOverview();
+    }
+
+    private void showMessage(String title, String message) {
+        Alert alert = new Alert(AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private void openAuthView() {
         try {
             FXMLLoader loader = new FXMLLoader(
                     DashboardController.class.getResource("/at/jku/se/smarthome/fxml/auth-view.fxml")
             );
             Scene scene = new Scene(loader.load(), 900, 600);
-            Stage stage = (Stage) toggleButton.getScene().getWindow();
+            if (roomListContainer.getScene() == null) {
+                Platform.runLater(this::openAuthView);
+                return;
+            }
+            Stage stage = (Stage) roomListContainer.getScene().getWindow();
             stage.setScene(scene);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to open login view", exception);
-        }
-    }
-
-    @FXML
-    public void toggleDevice() {
-        if (switchDevice == null) {
-            return;
-        }
-
-        switchDevice.toggle();
-        updateUI();
-    }
-
-    @FXML
-    public void changeDeviceValue(Event event) {
-        Object source = event.getSource();
-
-        if (source == dimmerSlider && dimmerDevice != null) {
-            int roundedValue = (int) Math.round(dimmerSlider.getValue());
-            dimmerSlider.setValue(roundedValue);
-            dimmerDevice.setValue(roundedValue);
-        } else if (source == thermostatSlider && thermostatDevice != null) {
-            int roundedValue = (int) Math.round(thermostatSlider.getValue());
-            thermostatSlider.setValue(roundedValue);
-            thermostatDevice.setValue(roundedValue);
-        }
-
-        updateUI();
-    }
-
-    @FXML
-    public void renameSwitchDevice() {
-        renameDevice(switchDevice);
-    }
-
-    @FXML
-    public void renameDimmerDevice() {
-        renameDevice(dimmerDevice);
-    }
-
-    @FXML
-    public void renameThermostatDevice() {
-        renameDevice(thermostatDevice);
-    }
-
-    @FXML
-    public void removeSwitchDevice() {
-        removeDevice(switchDevice, switchCard);
-        switchDevice = null;
-        updateUI();
-    }
-
-    @FXML
-    public void removeDimmerDevice() {
-        removeDevice(dimmerDevice, dimmerCard);
-        dimmerDevice = null;
-        updateUI();
-    }
-
-    @FXML
-    public void removeThermostatDevice() {
-        removeDevice(thermostatDevice, thermostatCard);
-        thermostatDevice = null;
-        updateUI();
-    }
-
-    private void renameDevice(Device device) {
-        if (device == null) {
-            return;
-        }
-
-        TextInputDialog dialog = new TextInputDialog(device.getName());
-        dialog.setTitle("Rename Device");
-        dialog.setHeaderText("Rename device");
-        dialog.setContentText("New name:");
-
-        Optional<String> result = dialog.showAndWait();
-        if (result.isPresent()) {
-            system.renameDevice(device.getId(), result.get());
-            updateUI();
-        }
-    }
-
-    private void removeDevice(Device device, VBox card) {
-        if (device == null) {
-            return;
-        }
-
-        system.removeDevice(device.getId());
-        card.setVisible(false);
-        card.setManaged(false);
-    }
-
-    private void updateUI() {
-        if (switchDevice != null) {
-            switchName.setText(switchDevice.getName());
-            toggleButton.setText(switchDevice.isOn() ? "On" : "Off");
-            switchStatus.setText(switchDevice.getStatusText());
-        }
-
-        if (dimmerDevice != null) {
-            dimmerName.setText(dimmerDevice.getName());
-            dimmerStatus.setText(dimmerDevice.getStatusText());
-            dimmerSlider.setValue(dimmerDevice.getValue());
-        }
-
-        if (thermostatDevice != null) {
-            thermostatName.setText(thermostatDevice.getName());
-            thermostatStatus.setText(thermostatDevice.getStatusText());
-            thermostatSlider.setValue(thermostatDevice.getValue());
         }
     }
 }

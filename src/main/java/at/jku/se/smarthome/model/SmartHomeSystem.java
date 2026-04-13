@@ -1,7 +1,10 @@
 package at.jku.se.smarthome.model;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import at.jku.se.smarthome.repository.InMemoryUserRepository;
@@ -20,6 +23,7 @@ public class SmartHomeSystem {
             new SmartHomeSystem(new SQLiteUserRepository(DEFAULT_DATABASE_URL));
 
     private final List<Room> rooms;
+    private final Map<String, List<Room>> userRooms;
     private final UserRepository userRepository;
     private final UserSession userSession;
 
@@ -34,6 +38,7 @@ public class SmartHomeSystem {
      */
     public SmartHomeSystem(UserRepository userRepository) {
         this.rooms = new ArrayList<>();
+        this.userRooms = new HashMap<>();
         this.userRepository = userRepository;
         this.userSession = new UserSession();
     }
@@ -51,14 +56,86 @@ public class SmartHomeSystem {
         if (room == null) {
             throw new IllegalArgumentException("Room must not be null");
         }
-        rooms.add(room);
+        getActiveRooms().add(room);
     }
 
     /**
      * Removes all currently stored rooms from the system.
      */
     public void clearRooms() {
-        rooms.clear();
+        getActiveRooms().clear();
+    }
+
+    /**
+     * Creates and stores a room for the currently authenticated user.
+     *
+     * @param roomName the display name of the room
+     * @return the created room
+     */
+    public Room createRoom(String roomName) {
+        requireAuthenticatedUser();
+        Room room = new Room(UUID.randomUUID().toString(), roomName);
+        getActiveRooms().add(room);
+        return room;
+    }
+
+    /**
+     * Renames an existing room of the currently authenticated user.
+     *
+     * @param roomId the room id
+     * @param newName the new room name
+     */
+    public void renameRoom(String roomId, String newName) {
+        requireAuthenticatedUser();
+        Room room = findRoomById(roomId);
+        if (room == null) {
+            throw new IllegalArgumentException("Room not found");
+        }
+        room.rename(newName);
+    }
+
+    /**
+     * Removes an existing room of the currently authenticated user.
+     *
+     * @param roomId the room id
+     * @return {@code true} if a room was removed, otherwise {@code false}
+     */
+    public boolean removeRoom(String roomId) {
+        requireAuthenticatedUser();
+        Room room = findRoomById(roomId);
+        if (room == null) {
+            return false;
+        }
+        return getActiveRooms().remove(room);
+    }
+
+    /**
+     * Returns all rooms of the active context.
+     * If a user is logged in, their rooms are returned; otherwise the anonymous in-memory rooms.
+     *
+     * @return a defensive copy of the rooms list
+     */
+    public List<Room> getRooms() {
+        return List.copyOf(getActiveRooms());
+    }
+
+    /**
+     * Finds a room by id in the active context.
+     *
+     * @param roomId the room id
+     * @return the matching room, or {@code null} if no room exists
+     */
+    public Room findRoomById(String roomId) {
+        if (roomId == null || roomId.isBlank()) {
+            return null;
+        }
+
+        for (Room room : getActiveRooms()) {
+            if (room.getId().equals(roomId.trim())) {
+                return room;
+            }
+        }
+        return null;
     }
 
     public void renameDevice(String deviceId, String newName) {
@@ -70,7 +147,7 @@ public class SmartHomeSystem {
     }
 
     public boolean removeDevice(String deviceId) {
-        for (Room room : rooms) {
+        for (Room room : getActiveRooms()) {
             if (room.removeDevice(deviceId)) {
                 return true;
             }
@@ -79,7 +156,7 @@ public class SmartHomeSystem {
     }
 
     public Device findDeviceById(String deviceId) {
-        for (Room room : rooms) {
+        for (Room room : getActiveRooms()) {
             Device device = room.findDeviceById(deviceId);
             if (device != null) {
                 return device;
@@ -189,6 +266,21 @@ public class SmartHomeSystem {
         }
         if (password.length() < 8) {
             throw new IllegalArgumentException("Password must contain at least 8 characters");
+        }
+    }
+
+    private List<Room> getActiveRooms() {
+        if (!userSession.isLoggedIn()) {
+            return rooms;
+        }
+
+        String userEmail = userSession.getCurrentUser().getEmail();
+        return userRooms.computeIfAbsent(userEmail, key -> new ArrayList<>());
+    }
+
+    private void requireAuthenticatedUser() {
+        if (!userSession.isLoggedIn()) {
+            throw new IllegalStateException("User must be logged in");
         }
     }
 }

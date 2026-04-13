@@ -98,4 +98,82 @@ public class SmartHomeSystemTest {
 
         assertThrows(IllegalArgumentException.class, () -> system.addRoom(null));
     }
+
+    @Test
+    public void createRoom_loggedInUser_addsRoomToRoomList() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("room-owner@example.com", "password123");
+        system.loginUser("room-owner@example.com", "password123");
+
+        Room room = system.createRoom("Kitchen");
+
+        assertEquals("Kitchen", room.getName());
+        assertEquals(1, system.getRooms().size());
+        assertEquals(room.getId(), system.getRooms().get(0).getId());
+    }
+
+    @Test
+    public void createRoom_withoutLogin_throwsException() {
+        SmartHomeSystem system = new SmartHomeSystem();
+
+        assertThrows(IllegalStateException.class, () -> system.createRoom("Kitchen"));
+    }
+
+    @Test
+    public void renameRoom_existingRoom_changesName() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("room-owner@example.com", "password123");
+        system.loginUser("room-owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+
+        system.renameRoom(room.getId(), "Bedroom");
+
+        assertEquals("Bedroom", system.findRoomById(room.getId()).getName());
+    }
+
+    @Test
+    public void renameRoom_unknownRoom_throwsException() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("room-owner@example.com", "password123");
+        system.loginUser("room-owner@example.com", "password123");
+
+        assertThrows(IllegalArgumentException.class, () -> system.renameRoom("missing", "Bedroom"));
+    }
+
+    @Test
+    public void removeRoom_existingRoom_returnsTrueAndRemovesRoom() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("room-owner@example.com", "password123");
+        system.loginUser("room-owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+
+        boolean removed = system.removeRoom(room.getId());
+
+        assertTrue(removed);
+        assertNull(system.findRoomById(room.getId()));
+        assertTrue(system.getRooms().isEmpty());
+    }
+
+    @Test
+    public void removeRoom_unknownRoom_returnsFalse() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("room-owner@example.com", "password123");
+        system.loginUser("room-owner@example.com", "password123");
+
+        assertFalse(system.removeRoom("missing"));
+    }
+
+    @Test
+    public void roomLists_areIsolatedPerAuthenticatedUser() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("owner1@example.com", "password123");
+        system.registerUser("owner2@example.com", "password123");
+
+        system.loginUser("owner1@example.com", "password123");
+        system.createRoom("Kitchen");
+        system.logoutUser();
+
+        system.loginUser("owner2@example.com", "password123");
+        assertTrue(system.getRooms().isEmpty());
+    }
 }
