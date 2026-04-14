@@ -42,14 +42,14 @@ jobs:
           path: target/site/jacoco/
 
       - name: PMD static analysis
-        run: mvn pmd:pmd pmd:cpd -q
+        run: mvn pmd:pmd pmd:cpd -Dpmd.format=sarif -q
 
-      - name: Upload PMD report
-        uses: actions/upload-artifact@v4
+      - name: Upload PMD SARIF report
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          name: pmd-report
-          path: target/pmd.xml
+          sarif_file: target/pmd.sarif
+          category: pmd
 
       - name: Package
         run: mvn package -DskipTests -q
