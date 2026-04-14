@@ -45,7 +45,7 @@ jobs:
         run: mvn pmd:pmd pmd:cpd -Dpmd.format=sarif -q
 
       - name: Upload PMD SARIF report
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: target/pmd.sarif
