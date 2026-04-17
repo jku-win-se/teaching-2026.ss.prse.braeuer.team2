@@ -42,7 +42,6 @@ public class LoginController {
 
     @FXML
     public void handleLogin() {
-        System.out.println("Login attempt for: " + emailField.getText()); // TODO: remove
         try {
             User user = system.loginUser(emailField.getText(), passwordField.getText());
             feedbackLabel.setStyle("-fx-text-fill: #2f7d32;");
