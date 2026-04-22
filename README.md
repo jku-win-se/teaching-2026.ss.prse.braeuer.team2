@@ -2,6 +2,9 @@
 
 Überblick über das Projekt.
 
+![Test Coverage](https://raw.githubusercontent.com/jku-win-se/teaching-2026.ss.prse.braeuer.team2/gh-pages/badges/jacoco.svg)
+
+
 # Umgesetzte Anforderungen
 
 * Welche der Anforderungen haben Sie umgesetzt, wer aus dem Team war verantwortlich und welches Stundenausmaß ist damit verknüpft?

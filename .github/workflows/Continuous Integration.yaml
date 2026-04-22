@@ -7,6 +7,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,7 +29,7 @@ jobs:
         run: mvn compile -q
 
       - name: Test & coverage check
-        run: mvn test
+        run: mvn verify
 
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
@@ -40,6 +43,22 @@ jobs:
         with:
           name: jacoco-report
           path: target/site/jacoco/
+
+      - name: Generate JaCoCo badge
+        if: always() && github.ref == 'refs/heads/main'
+        uses: cicirello/jacoco-badge-generator@v2
+        with:
+          jacoco-csv-file: target/site/jacoco/jacoco.csv
+          badges-directory: .github/badges
+
+      - name: Publish coverage badge
+        if: always() && github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .github/badges
+          publish_branch: gh-pages
+          destination_dir: badges
 
       - name: PMD static analysis
         uses: pmd/pmd-github-action@v2
