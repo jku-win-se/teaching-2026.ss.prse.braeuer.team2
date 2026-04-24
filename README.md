@@ -2,6 +2,7 @@
 
 Überblick über das Projekt.
 
+Testabdeckung:
 ![Model Test Coverage](https://raw.githubusercontent.com/jku-win-se/teaching-2026.ss.prse.braeuer.team2/gh-pages/badges/jacoco-model.svg)
 
 
