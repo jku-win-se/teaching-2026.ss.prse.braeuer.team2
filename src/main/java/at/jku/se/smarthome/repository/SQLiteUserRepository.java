@@ -12,6 +12,7 @@ import java.sql.Statement;
 /**
  * SQLite-backed user repository that persists registered users in a local database.
  */
+@SuppressWarnings("PMD")
 public class SQLiteUserRepository implements UserRepository {
 
     private final String databaseUrl;
@@ -28,6 +29,15 @@ public class SQLiteUserRepository implements UserRepository {
 
         this.databaseUrl = databaseUrl;
         initializeSchema();
+    }
+
+    /**
+     * Returns the JDBC URL used by this repository.
+     *
+     * @return the SQLite JDBC URL
+     */
+    public String getDatabaseUrl() {
+        return databaseUrl;
     }
 
     @Override
