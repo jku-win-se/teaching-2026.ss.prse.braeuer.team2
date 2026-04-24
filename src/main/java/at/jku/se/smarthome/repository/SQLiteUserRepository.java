@@ -30,6 +30,15 @@ public class SQLiteUserRepository implements UserRepository {
         initializeSchema();
     }
 
+    /**
+     * Returns the JDBC URL used by this repository.
+     *
+     * @return the SQLite JDBC URL
+     */
+    public String getDatabaseUrl() {
+        return databaseUrl;
+    }
+
     @Override
     public User save(User user) {
         String sql = "INSERT INTO users(email, password_hash) VALUES(?, ?)";

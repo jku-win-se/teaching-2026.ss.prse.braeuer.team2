@@ -1,5 +1,8 @@
 package at.jku.se.smarthome.model;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -7,7 +10,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import at.jku.se.smarthome.repository.HomeRepository;
+import at.jku.se.smarthome.repository.InMemoryHomeRepository;
 import at.jku.se.smarthome.repository.InMemoryUserRepository;
+import at.jku.se.smarthome.repository.SQLiteHomeRepository;
 import at.jku.se.smarthome.repository.SQLiteUserRepository;
 import at.jku.se.smarthome.repository.UserRepository;
 import at.jku.se.smarthome.util.PasswordHasher;
@@ -18,17 +24,17 @@ import at.jku.se.smarthome.util.PasswordHasher;
 public class SmartHomeSystem {
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
-    private static final String DEFAULT_DATABASE_URL = "jdbc:sqlite:smarthome.db";
-    private static final SmartHomeSystem PERSISTENT_SYSTEM =
-            new SmartHomeSystem(new SQLiteUserRepository(DEFAULT_DATABASE_URL));
+    private static final String DEFAULT_DATABASE_URL = "jdbc:sqlite:" + resolveDefaultDatabasePath();
+    private static SmartHomeSystem persistentSystem;
 
     private final List<Room> rooms;
     private final Map<String, List<Room>> userRooms;
     private final UserRepository userRepository;
+    private final HomeRepository homeRepository;
     private final UserSession userSession;
 
     public SmartHomeSystem() {
-        this(new InMemoryUserRepository());
+        this(new InMemoryUserRepository(), new InMemoryHomeRepository());
     }
 
     /**
@@ -37,9 +43,20 @@ public class SmartHomeSystem {
      * @param userRepository the repository used to persist users
      */
     public SmartHomeSystem(UserRepository userRepository) {
+        this(userRepository, resolveHomeRepository(userRepository));
+    }
+
+    /**
+     * Creates a system with the provided repositories.
+     *
+     * @param userRepository the repository used to persist users
+     * @param homeRepository the repository used to persist rooms and devices
+     */
+    public SmartHomeSystem(UserRepository userRepository, HomeRepository homeRepository) {
         this.rooms = new ArrayList<>();
         this.userRooms = new HashMap<>();
         this.userRepository = userRepository;
+        this.homeRepository = homeRepository;
         this.userSession = new UserSession();
     }
 
@@ -49,7 +66,13 @@ public class SmartHomeSystem {
      * @return a smart home system with SQLite persistence for users
      */
     public static SmartHomeSystem createPersistentSystem() {
-        return PERSISTENT_SYSTEM;
+        if (persistentSystem == null) {
+            persistentSystem = new SmartHomeSystem(
+                    new SQLiteUserRepository(DEFAULT_DATABASE_URL),
+                    new SQLiteHomeRepository(DEFAULT_DATABASE_URL)
+            );
+        }
+        return persistentSystem;
     }
 
     public void addRoom(Room room) {
@@ -57,12 +80,16 @@ public class SmartHomeSystem {
             throw new IllegalArgumentException("Room must not be null");
         }
         getActiveRooms().add(room);
+        persistRoomIfAuthenticated(room);
     }
 
     /**
      * Removes all currently stored rooms from the system.
      */
     public void clearRooms() {
+        if (userSession.isLoggedIn()) {
+            homeRepository.deleteRoomsByUserEmail(userSession.getCurrentUser().getEmail());
+        }
         getActiveRooms().clear();
     }
 
@@ -76,6 +103,7 @@ public class SmartHomeSystem {
         requireAuthenticatedUser();
         Room room = new Room(UUID.randomUUID().toString(), roomName);
         getActiveRooms().add(room);
+        homeRepository.saveRoom(userSession.getCurrentUser().getEmail(), room);
         return room;
     }
 
@@ -92,6 +120,7 @@ public class SmartHomeSystem {
             throw new IllegalArgumentException("Room not found");
         }
         room.rename(newName);
+        homeRepository.updateRoom(room);
     }
 
     /**
@@ -106,7 +135,11 @@ public class SmartHomeSystem {
         if (room == null) {
             return false;
         }
-        return getActiveRooms().remove(room);
+        boolean removed = getActiveRooms().remove(room);
+        if (removed) {
+            homeRepository.deleteRoom(roomId);
+        }
+        return removed;
     }
 
     /**
@@ -155,6 +188,7 @@ public class SmartHomeSystem {
 
         Device device = new Device(UUID.randomUUID().toString(), deviceName, deviceType);
         room.addDevice(device);
+        homeRepository.saveDevice(roomId, device);
         return device;
     }
 
@@ -164,15 +198,48 @@ public class SmartHomeSystem {
             throw new IllegalArgumentException("Device not found");
         }
         device.rename(newName);
+        homeRepository.updateDevice(device);
     }
 
     public boolean removeDevice(String deviceId) {
         for (Room room : getActiveRooms()) {
             if (room.removeDevice(deviceId)) {
+                homeRepository.deleteDevice(deviceId);
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Toggles a switch device and persists the changed state.
+     *
+     * @param deviceId the device id
+     */
+    public void toggleDevice(String deviceId) {
+        Device device = findDeviceById(deviceId);
+        if (device == null) {
+            throw new IllegalArgumentException("Device not found");
+        }
+
+        device.toggle();
+        homeRepository.updateDevice(device);
+    }
+
+    /**
+     * Updates a device value and persists the changed state.
+     *
+     * @param deviceId the device id
+     * @param value the new device value
+     */
+    public void updateDeviceValue(String deviceId, double value) {
+        Device device = findDeviceById(deviceId);
+        if (device == null) {
+            throw new IllegalArgumentException("Device not found");
+        }
+
+        device.setValue(value);
+        homeRepository.updateDevice(device);
     }
 
     public Device findDeviceById(String deviceId) {
@@ -295,12 +362,70 @@ public class SmartHomeSystem {
         }
 
         String userEmail = userSession.getCurrentUser().getEmail();
-        return userRooms.computeIfAbsent(userEmail, key -> new ArrayList<>());
+        return userRooms.computeIfAbsent(userEmail, homeRepository::findRoomsByUserEmail);
     }
 
     private void requireAuthenticatedUser() {
         if (!userSession.isLoggedIn()) {
             throw new IllegalStateException("User must be logged in");
+        }
+    }
+
+    private void persistRoomIfAuthenticated(Room room) {
+        if (!userSession.isLoggedIn()) {
+            return;
+        }
+
+        String userEmail = userSession.getCurrentUser().getEmail();
+        homeRepository.saveRoom(userEmail, room);
+        for (Device device : room.getDevices()) {
+            homeRepository.saveDevice(room.getId(), device);
+        }
+    }
+
+    private static HomeRepository resolveHomeRepository(UserRepository userRepository) {
+        if (userRepository instanceof SQLiteUserRepository sqliteUserRepository) {
+            return new SQLiteHomeRepository(sqliteUserRepository.getDatabaseUrl());
+        }
+        return new InMemoryHomeRepository();
+    }
+
+    private static String resolveDefaultDatabasePath() {
+        Path projectPath = findProjectRoot(Paths.get("").toAbsolutePath());
+        if (projectPath == null) {
+            projectPath = findProjectRoot(resolveCodeSourcePath());
+        }
+
+        if (projectPath != null) {
+            return projectPath.resolve("smarthome.db").toAbsolutePath().toString();
+        }
+
+        return Paths.get(System.getProperty("user.home"), ".smarthome-orchestrator", "smarthome.db")
+                .toAbsolutePath()
+                .toString();
+    }
+
+    private static Path findProjectRoot(Path startPath) {
+        if (startPath == null) {
+            return null;
+        }
+
+        Path currentPath = Files.isDirectory(startPath) ? startPath : startPath.getParent();
+        while (currentPath != null) {
+            if (Files.exists(currentPath.resolve("pom.xml")) || Files.exists(currentPath.resolve(".git"))) {
+                return currentPath;
+            }
+            currentPath = currentPath.getParent();
+        }
+
+        return null;
+    }
+
+    private static Path resolveCodeSourcePath() {
+        try {
+            return Paths.get(SmartHomeSystem.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        } catch (Exception exception) {
+            return null;
         }
     }
 }
