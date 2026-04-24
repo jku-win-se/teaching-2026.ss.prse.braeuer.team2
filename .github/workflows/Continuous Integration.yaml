@@ -50,7 +50,8 @@ jobs:
       - name: Filter JaCoCo coverage to model package
         if: always() && github.ref == 'refs/heads/main'
         run: |
-          awk 'NR == 1 || $2 == "at.jku.se.smarthome.model"' target/site/jacoco/jacoco.csv > target/site/jacoco/jacoco-model.csv
+          awk -F, 'NR == 1 || $2 == "at.jku.se.smarthome.model"' target/site/jacoco/jacoco.csv > target/site/jacoco/jacoco-model.csv
+          test "$(wc -l < target/site/jacoco/jacoco-model.csv)" -gt 1
 
       - name: Generate JaCoCo badge
         if: always() && github.ref == 'refs/heads/main'
