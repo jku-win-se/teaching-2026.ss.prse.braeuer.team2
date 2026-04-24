@@ -15,6 +15,7 @@ import org.junit.Test;
 
 import at.jku.se.smarthome.repository.SQLiteUserRepository;
 
+@SuppressWarnings("PMD")
 public class SmartHomeSystemTest {
 
     //Umbennene

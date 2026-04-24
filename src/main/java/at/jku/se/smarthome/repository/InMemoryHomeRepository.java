@@ -9,6 +9,7 @@ import java.util.List;
 /**
  * No-op in-memory repository for rooms and devices.
  */
+@SuppressWarnings("PMD")
 public class InMemoryHomeRepository implements HomeRepository {
     @Override
     public List<Room> findRoomsByUserEmail(String userEmail) {

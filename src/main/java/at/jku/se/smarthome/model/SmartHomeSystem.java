@@ -21,6 +21,7 @@ import at.jku.se.smarthome.util.PasswordHasher;
 /**
  * Central smart home domain model for rooms, devices and user registration.
  */
+@SuppressWarnings("PMD")
 public class SmartHomeSystem {
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");

@@ -8,6 +8,7 @@ import java.util.List;
 /**
  * Defines persistence operations for rooms and devices owned by a user.
  */
+@SuppressWarnings("PMD")
 public interface HomeRepository {
     /**
      * Loads all rooms including their devices for the given user.

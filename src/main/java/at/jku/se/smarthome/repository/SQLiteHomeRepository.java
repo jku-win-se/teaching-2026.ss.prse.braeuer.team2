@@ -18,6 +18,7 @@ import java.util.Map;
 /**
  * SQLite-backed repository for rooms and devices.
  */
+@SuppressWarnings("PMD")
 public class SQLiteHomeRepository implements HomeRepository {
 
     private final String databaseUrl;

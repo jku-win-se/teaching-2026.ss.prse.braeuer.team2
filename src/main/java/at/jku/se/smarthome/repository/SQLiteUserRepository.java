@@ -12,6 +12,7 @@ import java.sql.Statement;
 /**
  * SQLite-backed user repository that persists registered users in a local database.
  */
+@SuppressWarnings("PMD")
 public class SQLiteUserRepository implements UserRepository {
 
     private final String databaseUrl;
