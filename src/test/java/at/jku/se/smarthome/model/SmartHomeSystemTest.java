@@ -7,7 +7,13 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.Test;
+
+import at.jku.se.smarthome.repository.SQLiteUserRepository;
 
 public class SmartHomeSystemTest {
 
@@ -221,5 +227,81 @@ public class SmartHomeSystemTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> system.createDevice(room.getId(), "   ", DeviceType.DIMMER));
+    }
+
+    @Test
+    public void roomsAndDevices_areLoadedAgainAfterRestart() throws IOException {
+        Path databaseFile = Files.createTempFile("smarthome-room-device-persistence", ".db");
+        databaseFile.toFile().deleteOnExit();
+        String databaseUrl = "jdbc:sqlite:" + databaseFile;
+
+        SmartHomeSystem firstSystem = new SmartHomeSystem(new SQLiteUserRepository(databaseUrl));
+        firstSystem.registerUser("owner@example.com", "password123");
+        firstSystem.loginUser("owner@example.com", "password123");
+        Room room = firstSystem.createRoom("Living Room");
+        Device device = firstSystem.createDevice(room.getId(), "Ceiling Light", DeviceType.DIMMER);
+        firstSystem.updateDeviceValue(device.getId(), 75);
+        firstSystem.logoutUser();
+
+        SmartHomeSystem secondSystem = new SmartHomeSystem(new SQLiteUserRepository(databaseUrl));
+        secondSystem.loginUser("owner@example.com", "password123");
+
+        assertEquals(1, secondSystem.getRooms().size());
+        Room persistedRoom = secondSystem.getRooms().get(0);
+        assertEquals("Living Room", persistedRoom.getName());
+        assertEquals(1, persistedRoom.getDevices().size());
+
+        Device persistedDevice = persistedRoom.getDevices().get(0);
+        assertEquals("Ceiling Light", persistedDevice.getName());
+        assertEquals(DeviceType.DIMMER, persistedDevice.getType());
+        assertEquals(75.0, persistedDevice.getValue(), 0.0001);
+        assertTrue(persistedDevice.isOn());
+    }
+
+    @Test
+    public void roomAndDeviceChanges_areStillVisibleAfterRestart() throws IOException {
+        Path databaseFile = Files.createTempFile("smarthome-room-device-update", ".db");
+        databaseFile.toFile().deleteOnExit();
+        String databaseUrl = "jdbc:sqlite:" + databaseFile;
+
+        SmartHomeSystem firstSystem = new SmartHomeSystem(new SQLiteUserRepository(databaseUrl));
+        firstSystem.registerUser("owner@example.com", "password123");
+        firstSystem.loginUser("owner@example.com", "password123");
+        Room room = firstSystem.createRoom("Living Room");
+        Device device = firstSystem.createDevice(room.getId(), "Lamp", DeviceType.SWITCH);
+        firstSystem.renameRoom(room.getId(), "Bedroom");
+        firstSystem.renameDevice(device.getId(), "Bedside Lamp");
+        firstSystem.toggleDevice(device.getId());
+        firstSystem.logoutUser();
+
+        SmartHomeSystem secondSystem = new SmartHomeSystem(new SQLiteUserRepository(databaseUrl));
+        secondSystem.loginUser("owner@example.com", "password123");
+
+        Room persistedRoom = secondSystem.getRooms().get(0);
+        Device persistedDevice = persistedRoom.getDevices().get(0);
+        assertEquals("Bedroom", persistedRoom.getName());
+        assertEquals("Bedside Lamp", persistedDevice.getName());
+        assertTrue(persistedDevice.isOn());
+    }
+
+    @Test
+    public void deletedRoomsAndDevices_stayDeletedAfterRestart() throws IOException {
+        Path databaseFile = Files.createTempFile("smarthome-room-device-delete", ".db");
+        databaseFile.toFile().deleteOnExit();
+        String databaseUrl = "jdbc:sqlite:" + databaseFile;
+
+        SmartHomeSystem firstSystem = new SmartHomeSystem(new SQLiteUserRepository(databaseUrl));
+        firstSystem.registerUser("owner@example.com", "password123");
+        firstSystem.loginUser("owner@example.com", "password123");
+        Room room = firstSystem.createRoom("Office");
+        Device device = firstSystem.createDevice(room.getId(), "Sensor", DeviceType.SENSOR);
+        firstSystem.removeDevice(device.getId());
+        firstSystem.removeRoom(room.getId());
+        firstSystem.logoutUser();
+
+        SmartHomeSystem secondSystem = new SmartHomeSystem(new SQLiteUserRepository(databaseUrl));
+        secondSystem.loginUser("owner@example.com", "password123");
+
+        assertTrue(secondSystem.getRooms().isEmpty());
     }
 }

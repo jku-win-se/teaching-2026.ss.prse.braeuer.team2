@@ -167,8 +167,12 @@ public class DashboardController {
                 Button toggleButton = new Button(device.isOn() ? "On" : "Off");
                 toggleButton.setStyle("-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 20;");
                 toggleButton.setOnAction(event -> {
-                    device.toggle();
-                    refreshRoomOverview();
+                    try {
+                        system.toggleDevice(device.getId());
+                        refreshRoomOverview();
+                    } catch (IllegalArgumentException | IllegalStateException exception) {
+                        showMessage("Device update failed", exception.getMessage());
+                    }
                 });
                 yield new VBox(6, toggleButton);
             }
@@ -181,8 +185,12 @@ public class DashboardController {
                 dimmerSlider.setSnapToTicks(true);
                 dimmerSlider.setOnMouseReleased(event -> {
                     int roundedValue = (int) Math.round(dimmerSlider.getValue());
-                    device.setValue(roundedValue);
-                    refreshRoomOverview();
+                    try {
+                        system.updateDeviceValue(device.getId(), roundedValue);
+                        refreshRoomOverview();
+                    } catch (IllegalArgumentException | IllegalStateException exception) {
+                        showMessage("Device update failed", exception.getMessage());
+                    }
                 });
                 yield new VBox(6, statusLabel, dimmerSlider);
             }
@@ -195,8 +203,12 @@ public class DashboardController {
                 thermostatSlider.setSnapToTicks(true);
                 thermostatSlider.setOnMouseReleased(event -> {
                     int roundedValue = (int) Math.round(thermostatSlider.getValue());
-                    device.setValue(roundedValue);
-                    refreshRoomOverview();
+                    try {
+                        system.updateDeviceValue(device.getId(), roundedValue);
+                        refreshRoomOverview();
+                    } catch (IllegalArgumentException | IllegalStateException exception) {
+                        showMessage("Device update failed", exception.getMessage());
+                    }
                 });
                 yield new VBox(6, statusLabel, thermostatSlider);
             }
@@ -204,12 +216,16 @@ public class DashboardController {
                 Button blindToggle = new Button(device.isOn() ? "Open" : "Closed");
                 blindToggle.setStyle("-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 20;");
                 blindToggle.setOnAction(event -> {
-                    if (device.isOn()) {
-                        device.setValue(0);
-                    } else {
-                        device.setValue(100);
+                    try {
+                        if (device.isOn()) {
+                            system.updateDeviceValue(device.getId(), 0);
+                        } else {
+                            system.updateDeviceValue(device.getId(), 100);
+                        }
+                        refreshRoomOverview();
+                    } catch (IllegalArgumentException | IllegalStateException exception) {
+                        showMessage("Device update failed", exception.getMessage());
                     }
-                    refreshRoomOverview();
                 });
                 yield new VBox(6, blindToggle);
             }
@@ -276,10 +292,12 @@ public class DashboardController {
         if (result.isPresent()) {
             try {
                 double value = Double.parseDouble(result.get().trim());
-                device.setValue(value);
+                system.updateDeviceValue(device.getId(), value);
                 refreshRoomOverview();
             } catch (NumberFormatException exception) {
                 showMessage("Invalid value", "Please enter a numeric value.");
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                showMessage("Device update failed", exception.getMessage());
             }
         }
     }
