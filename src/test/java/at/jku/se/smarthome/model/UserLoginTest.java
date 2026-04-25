@@ -9,6 +9,10 @@ import org.junit.Test;
 
 import at.jku.se.smarthome.repository.SQLiteUserRepository;
 
+@SuppressWarnings({
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor"
+})
 public class UserLoginTest {
 
     @Test
@@ -18,9 +22,11 @@ public class UserLoginTest {
 
         User loggedInUser = system.loginUser("user@example.com", "secret123");
 
-        Assert.assertEquals(registeredUser.getEmail(), loggedInUser.getEmail());
-        Assert.assertTrue(system.isUserLoggedIn());
-        Assert.assertSame(loggedInUser, system.getLoggedInUser());
+        Assert.assertEquals("The logged-in user email should match the registered user",
+                registeredUser.getEmail(), loggedInUser.getEmail());
+        Assert.assertTrue("The user should be marked as logged in", system.isUserLoggedIn());
+        Assert.assertSame("The current session should reference the logged-in user",
+                loggedInUser, system.getLoggedInUser());
     }
 
     @Test
@@ -30,7 +36,8 @@ public class UserLoginTest {
 
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> system.loginUser("user@example.com", "wrongpass"));
-        Assert.assertFalse(system.isUserLoggedIn());
+        Assert.assertFalse("The user should remain logged out after a failed login attempt",
+                system.isUserLoggedIn());
     }
 
     @Test
@@ -39,7 +46,7 @@ public class UserLoginTest {
 
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> system.loginUser("missing@example.com", "secret123"));
-        Assert.assertFalse(system.isUserLoggedIn());
+        Assert.assertFalse("Unknown users must not be logged in", system.isUserLoggedIn());
     }
 
     @Test
@@ -50,8 +57,8 @@ public class UserLoginTest {
 
         system.logoutUser();
 
-        Assert.assertFalse(system.isUserLoggedIn());
-        Assert.assertNull(system.getLoggedInUser());
+        Assert.assertFalse("The user should be logged out after calling logout", system.isUserLoggedIn());
+        Assert.assertNull("The session should no longer contain a logged-in user", system.getLoggedInUser());
     }
 
     private SmartHomeSystem createSystemWithTempDatabase() throws IOException {

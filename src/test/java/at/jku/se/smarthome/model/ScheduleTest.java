@@ -220,11 +220,12 @@ public class ScheduleTest {
     }
 
     private static final class MutableClock extends Clock {
-        private Instant instant;
+        private Instant currentInstant;
         private final ZoneId zoneId;
 
         private MutableClock(Instant instant, ZoneId zoneId) {
-            this.instant = instant;
+            super();
+            this.currentInstant = instant;
             this.zoneId = zoneId;
         }
 
@@ -235,16 +236,16 @@ public class ScheduleTest {
 
         @Override
         public Clock withZone(ZoneId zone) {
-            return new MutableClock(instant, zone);
+            return new MutableClock(currentInstant, zone);
         }
 
         @Override
         public Instant instant() {
-            return instant;
+            return currentInstant;
         }
 
         private void setInstant(Instant newInstant) {
-            this.instant = newInstant;
+            this.currentInstant = newInstant;
         }
     }
 }
