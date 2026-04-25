@@ -51,6 +51,20 @@ public class DashboardController {
     }
 
     @FXML
+    public void openActivity() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    DashboardController.class.getResource("/at/jku/se/smarthome/fxml/activity-view.fxml")
+            );
+            Scene scene = new Scene(loader.load(), 1000, 600);
+            Stage stage = (Stage) roomListContainer.getScene().getWindow();
+            stage.setScene(scene);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to open activity view", exception);
+        }
+    }
+
+    @FXML
     public void createRoom() {
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Create Room");

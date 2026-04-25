@@ -8,11 +8,15 @@ import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.junit.Test;
 
+import at.jku.se.smarthome.repository.SQLiteHomeRepository;
 import at.jku.se.smarthome.repository.SQLiteUserRepository;
 
 @SuppressWarnings("PMD")
@@ -304,5 +308,120 @@ public class SmartHomeSystemTest {
         secondSystem.loginUser("owner@example.com", "password123");
 
         assertTrue(secondSystem.getRooms().isEmpty());
+    }
+
+    @Test
+    public void manualStateChange_createsActivityLogEntryWithUserActor() {
+        Clock fixedClock = Clock.fixed(Instant.parse("2026-04-25T10:15:30Z"), ZoneOffset.UTC);
+        SmartHomeSystem system = new SmartHomeSystem(
+                new at.jku.se.smarthome.repository.InMemoryUserRepository(),
+                new at.jku.se.smarthome.repository.InMemoryHomeRepository(),
+                fixedClock
+        );
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+        Device device = system.createDevice(room.getId(), "Lamp", DeviceType.SWITCH);
+
+        system.toggleDevice(device.getId());
+
+        assertEquals(1, system.getActivityLog().size());
+        ActivityLogEntry entry = system.getActivityLog().get(0);
+        assertEquals(Instant.parse("2026-04-25T10:15:30Z"), entry.getTimestamp());
+        assertEquals(device.getId(), entry.getDeviceId());
+        assertEquals("Lamp", entry.getDeviceName());
+        assertEquals(ActivityActorType.USER, entry.getActorType());
+        assertEquals("owner@example.com", entry.getActorName());
+        assertEquals("Off", entry.getPreviousState());
+        assertEquals("On", entry.getNewState());
+    }
+
+    @Test
+    public void automatedStateChange_createsActivityLogEntryWithRuleActor() {
+        Clock fixedClock = Clock.fixed(Instant.parse("2026-04-25T11:00:00Z"), ZoneOffset.UTC);
+        SmartHomeSystem system = new SmartHomeSystem(
+                new at.jku.se.smarthome.repository.InMemoryUserRepository(),
+                new at.jku.se.smarthome.repository.InMemoryHomeRepository(),
+                fixedClock
+        );
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+        Device device = system.createDevice(room.getId(), "Thermostat", DeviceType.THERMOSTAT);
+
+        system.updateDeviceValueByRule(device.getId(), 23.5, "Morning Heating Rule");
+
+        assertEquals(1, system.getActivityLog().size());
+        ActivityLogEntry entry = system.getActivityLog().get(0);
+        assertEquals(Instant.parse("2026-04-25T11:00:00Z"), entry.getTimestamp());
+        assertEquals(device.getId(), entry.getDeviceId());
+        assertEquals("Thermostat", entry.getDeviceName());
+        assertEquals(ActivityActorType.RULE, entry.getActorType());
+        assertEquals("Morning Heating Rule", entry.getActorName());
+        assertEquals("20 °C", entry.getPreviousState());
+        assertEquals("23.5 °C", entry.getNewState());
+    }
+
+    @Test
+    public void manualAndAutomatedStateChanges_areBothRecorded() {
+        Clock fixedClock = Clock.fixed(Instant.parse("2026-04-25T12:00:00Z"), ZoneOffset.UTC);
+        SmartHomeSystem system = new SmartHomeSystem(
+                new at.jku.se.smarthome.repository.InMemoryUserRepository(),
+                new at.jku.se.smarthome.repository.InMemoryHomeRepository(),
+                fixedClock
+        );
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+        Device device = system.createDevice(room.getId(), "Blind", DeviceType.BLIND);
+
+        system.updateDeviceValue(device.getId(), 100);
+        system.updateDeviceValueByRule(device.getId(), 0, "Sunset Rule");
+
+        assertEquals(2, system.getActivityLog().size());
+        assertEquals(ActivityActorType.USER, system.getActivityLog().get(0).getActorType());
+        assertEquals(ActivityActorType.RULE, system.getActivityLog().get(1).getActorType());
+        assertEquals("Closed", system.getActivityLog().get(0).getPreviousState());
+        assertEquals("Open", system.getActivityLog().get(0).getNewState());
+        assertEquals("Open", system.getActivityLog().get(1).getPreviousState());
+        assertEquals("Closed", system.getActivityLog().get(1).getNewState());
+    }
+
+    @Test
+    public void activityLogEntries_areLoadedAgainAfterRestart() throws IOException {
+        Path databaseFile = Files.createTempFile("smarthome-activity-log", ".db");
+        databaseFile.toFile().deleteOnExit();
+        String databaseUrl = "jdbc:sqlite:" + databaseFile;
+        Clock fixedClock = Clock.fixed(Instant.parse("2026-04-25T13:00:00Z"), ZoneOffset.UTC);
+
+        SmartHomeSystem firstSystem = new SmartHomeSystem(
+                new SQLiteUserRepository(databaseUrl),
+                new SQLiteHomeRepository(databaseUrl),
+                fixedClock
+        );
+        firstSystem.registerUser("owner@example.com", "password123");
+        firstSystem.loginUser("owner@example.com", "password123");
+        Room room = firstSystem.createRoom("Living Room");
+        Device device = firstSystem.createDevice(room.getId(), "Lamp", DeviceType.SWITCH);
+        firstSystem.toggleDevice(device.getId());
+        firstSystem.toggleDeviceByRule(device.getId(), "Night Rule");
+        firstSystem.logoutUser();
+
+        SmartHomeSystem secondSystem = new SmartHomeSystem(
+                new SQLiteUserRepository(databaseUrl),
+                new SQLiteHomeRepository(databaseUrl),
+                Clock.systemUTC()
+        );
+        secondSystem.loginUser("owner@example.com", "password123");
+
+        assertEquals(2, secondSystem.getActivityLog().size());
+        assertEquals("owner@example.com", secondSystem.getActivityLog().get(0).getActorName());
+        assertEquals(ActivityActorType.USER, secondSystem.getActivityLog().get(0).getActorType());
+        assertEquals("Off", secondSystem.getActivityLog().get(0).getPreviousState());
+        assertEquals("On", secondSystem.getActivityLog().get(0).getNewState());
+        assertEquals("Night Rule", secondSystem.getActivityLog().get(1).getActorName());
+        assertEquals(ActivityActorType.RULE, secondSystem.getActivityLog().get(1).getActorType());
+        assertEquals("On", secondSystem.getActivityLog().get(1).getPreviousState());
+        assertEquals("Off", secondSystem.getActivityLog().get(1).getNewState());
     }
 }
