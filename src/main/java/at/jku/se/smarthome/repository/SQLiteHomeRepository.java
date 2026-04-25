@@ -5,6 +5,11 @@ import at.jku.se.smarthome.model.ActivityLogEntry;
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.DeviceType;
 import at.jku.se.smarthome.model.Room;
+import at.jku.se.smarthome.model.Rule;
+import at.jku.se.smarthome.model.RuleAction;
+import at.jku.se.smarthome.model.RuleActionType;
+import at.jku.se.smarthome.model.RuleTrigger;
+import at.jku.se.smarthome.model.RuleTriggerType;
 import at.jku.se.smarthome.model.Schedule;
 import at.jku.se.smarthome.model.ScheduleActionType;
 
@@ -151,6 +156,34 @@ public class SQLiteHomeRepository implements HomeRepository {
     }
 
     @Override
+    public List<Rule> findRulesByUserEmail(String userEmail) {
+        String sql = """
+                SELECT id, name, trigger_type, trigger_device_id, trigger_expected_value,
+                       action_type, action_device_id, action_target_value
+                FROM rules
+                WHERE user_email = ?
+                ORDER BY name, id
+                """;
+
+        List<Rule> rules = new ArrayList<>();
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userEmail);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    rules.add(mapRule(resultSet));
+                }
+            }
+
+            return rules;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to query rules", exception);
+        }
+    }
+
+    @Override
     public void saveRoom(String userEmail, Room room) {
         String sql = "INSERT INTO rooms(id, user_email, name) VALUES(?, ?, ?)";
 
@@ -282,6 +315,50 @@ public class SQLiteHomeRepository implements HomeRepository {
     }
 
     @Override
+    public void saveRule(String userEmail, Rule rule) {
+        String sql = """
+                INSERT INTO rules(
+                    id, user_email, name, trigger_type, trigger_device_id, trigger_expected_value,
+                    action_type, action_device_id, action_target_value
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindRule(statement, userEmail, rule);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to save rule", exception);
+        }
+    }
+
+    @Override
+    public void updateRule(Rule rule) {
+        String sql = """
+                UPDATE rules
+                SET name = ?, trigger_type = ?, trigger_device_id = ?, trigger_expected_value = ?,
+                    action_type = ?, action_device_id = ?, action_target_value = ?
+                WHERE id = ?
+                """;
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, rule.getName());
+            statement.setString(2, rule.getTrigger().getTriggerType().name());
+            statement.setString(3, rule.getTrigger().getSourceDeviceId());
+            setNullableDouble(statement, 4, rule.getTrigger().getExpectedValue());
+            statement.setString(5, rule.getAction().getActionType().name());
+            statement.setString(6, rule.getAction().getTargetDeviceId());
+            setNullableDouble(statement, 7, rule.getAction().getTargetValue());
+            statement.setString(8, rule.getId());
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to update rule", exception);
+        }
+    }
+
+    @Override
     public void saveActivityLogEntry(String userEmail, ActivityLogEntry entry) {
         String sql = """
                 INSERT INTO activity_log(
@@ -316,6 +393,19 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to delete schedule", exception);
+        }
+    }
+
+    @Override
+    public void deleteRule(String ruleId) {
+        String sql = "DELETE FROM rules WHERE id = ?";
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, ruleId);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete rule", exception);
         }
     }
 
@@ -372,6 +462,25 @@ public class SQLiteHomeRepository implements HomeRepository {
         return schedule;
     }
 
+    private Rule mapRule(ResultSet resultSet) throws SQLException {
+        RuleTrigger trigger = new RuleTrigger(
+                RuleTriggerType.valueOf(resultSet.getString("trigger_type")),
+                resultSet.getString("trigger_device_id"),
+                readNullableDouble(resultSet, "trigger_expected_value")
+        );
+        RuleAction action = new RuleAction(
+                RuleActionType.valueOf(resultSet.getString("action_type")),
+                resultSet.getString("action_device_id"),
+                readNullableDouble(resultSet, "action_target_value")
+        );
+        return new Rule(
+                resultSet.getString("id"),
+                resultSet.getString("name"),
+                trigger,
+                action
+        );
+    }
+
     private void bindSchedule(PreparedStatement statement, String userEmail, Schedule schedule) throws SQLException {
         statement.setString(1, schedule.getId());
         statement.setString(2, userEmail);
@@ -382,6 +491,18 @@ public class SQLiteHomeRepository implements HomeRepository {
         statement.setString(7, schedule.getExecutionTime().toString());
         statement.setString(8, serializeRecurringDays(schedule.getRecurringDays()));
         setNullableString(statement, 9, schedule.getLastExecutedOn() == null ? null : schedule.getLastExecutedOn().toString());
+    }
+
+    private void bindRule(PreparedStatement statement, String userEmail, Rule rule) throws SQLException {
+        statement.setString(1, rule.getId());
+        statement.setString(2, userEmail);
+        statement.setString(3, rule.getName());
+        statement.setString(4, rule.getTrigger().getTriggerType().name());
+        statement.setString(5, rule.getTrigger().getSourceDeviceId());
+        setNullableDouble(statement, 6, rule.getTrigger().getExpectedValue());
+        statement.setString(7, rule.getAction().getActionType().name());
+        statement.setString(8, rule.getAction().getTargetDeviceId());
+        setNullableDouble(statement, 9, rule.getAction().getTargetValue());
     }
 
     private void setNullableDouble(PreparedStatement statement, int index, Double value) throws SQLException {
@@ -481,6 +602,22 @@ public class SQLiteHomeRepository implements HomeRepository {
                     FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
                 )
                 """;
+        String createRulesSql = """
+                CREATE TABLE IF NOT EXISTS rules (
+                    id TEXT PRIMARY KEY,
+                    user_email TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    trigger_type TEXT NOT NULL,
+                    trigger_device_id TEXT NOT NULL,
+                    trigger_expected_value REAL,
+                    action_type TEXT NOT NULL,
+                    action_device_id TEXT NOT NULL,
+                    action_target_value REAL,
+                    FOREIGN KEY(user_email) REFERENCES users(email) ON DELETE CASCADE,
+                    FOREIGN KEY(trigger_device_id) REFERENCES devices(id) ON DELETE CASCADE,
+                    FOREIGN KEY(action_device_id) REFERENCES devices(id) ON DELETE CASCADE
+                )
+                """;
 
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {
@@ -488,6 +625,7 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.execute(createDevicesSql);
             statement.execute(createActivityLogSql);
             statement.execute(createSchedulesSql);
+            statement.execute(createRulesSql);
             ensureActivityLogColumns(connection);
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to initialize home schema", exception);

@@ -76,6 +76,11 @@ public class ScheduleController {
     }
 
     @FXML
+    public void openRules() {
+        navigateTo("/at/jku/se/smarthome/fxml/rules-view.fxml", 1000, 600, "Failed to open rules view");
+    }
+
+    @FXML
     public void logout() {
         stopSchedulePolling();
         system.logoutUser();
