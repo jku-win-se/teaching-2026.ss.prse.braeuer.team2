@@ -18,6 +18,11 @@ import at.jku.se.smarthome.repository.InMemoryUserRepository;
 import at.jku.se.smarthome.repository.SQLiteHomeRepository;
 import at.jku.se.smarthome.repository.SQLiteUserRepository;
 
+@SuppressWarnings({
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.JUnitAssertionsShouldIncludeMessage"
+})
 public class ScheduleTest {
 
     @Test

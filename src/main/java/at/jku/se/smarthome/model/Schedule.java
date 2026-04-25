@@ -14,7 +14,8 @@ import java.util.Set;
 @SuppressWarnings({
         "PMD.CommentRequired",
         "PMD.ShortVariable",
-        "PMD.DataClass"
+        "PMD.DataClass",
+        "PMD.CyclomaticComplexity"
 })
 public class Schedule {
     private final String id;
@@ -130,13 +131,10 @@ public class Schedule {
         Objects.requireNonNull(date, "date");
         Objects.requireNonNull(time, "time");
 
-        if (!recurringDays.contains(date.getDayOfWeek())) {
-            return false;
-        }
-        if (lastExecutedOn != null && lastExecutedOn.equals(date)) {
-            return false;
-        }
-        return !time.withSecond(0).withNano(0).isBefore(executionTime);
+        boolean dueToday = recurringDays.contains(date.getDayOfWeek());
+        boolean alreadyExecutedToday = lastExecutedOn != null && lastExecutedOn.equals(date);
+        boolean afterExecutionTime = !time.withSecond(0).withNano(0).isBefore(executionTime);
+        return dueToday && !alreadyExecutedToday && afterExecutionTime;
     }
 
     /**
