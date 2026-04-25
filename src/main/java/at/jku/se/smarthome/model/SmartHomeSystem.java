@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,10 +39,13 @@ public class SmartHomeSystem {
 
     private final List<Room> rooms;
     private final List<ActivityLogEntry> activityLog;
+    private final List<Rule> rules;
     private final List<Schedule> schedules;
     private final Map<String, List<Room>> userRooms;
     private final Map<String, List<ActivityLogEntry>> userActivityLog;
+    private final Map<String, List<Rule>> userRules;
     private final Map<String, List<Schedule>> userSchedules;
+    private final Set<String> executingRuleIds;
     private final UserRepository userRepository;
     private final HomeRepository homeRepository;
     private final UserSession userSession;
@@ -80,10 +84,13 @@ public class SmartHomeSystem {
     public SmartHomeSystem(UserRepository userRepository, HomeRepository homeRepository, Clock clock) {
         this.rooms = new ArrayList<>();
         this.activityLog = new ArrayList<>();
+        this.rules = new ArrayList<>();
         this.schedules = new ArrayList<>();
         this.userRooms = new HashMap<>();
         this.userActivityLog = new HashMap<>();
+        this.userRules = new HashMap<>();
         this.userSchedules = new HashMap<>();
+        this.executingRuleIds = new HashSet<>();
         this.userRepository = userRepository;
         this.homeRepository = homeRepository;
         this.userSession = new UserSession();
@@ -122,6 +129,7 @@ public class SmartHomeSystem {
             homeRepository.deleteRoomsByUserEmail(userSession.getCurrentUser().getEmail());
         }
         getActiveRooms().clear();
+        getActiveRules().clear();
         getActiveSchedules().clear();
     }
 
@@ -167,6 +175,7 @@ public class SmartHomeSystem {
         if (room == null) {
             return false;
         }
+        removeRulesForRoom(room);
         removeSchedulesForRoom(room);
         boolean removed = getActiveRooms().remove(room);
         if (removed) {
@@ -237,6 +246,7 @@ public class SmartHomeSystem {
     public boolean removeDevice(String deviceId) {
         for (Room room : getActiveRooms()) {
             if (room.removeDevice(deviceId)) {
+                removeRulesForDevice(deviceId);
                 removeSchedulesForDevice(deviceId);
                 homeRepository.deleteDevice(deviceId);
                 return true;
@@ -284,7 +294,9 @@ public class SmartHomeSystem {
         String previousState = describeDeviceState(device);
         device.toggle();
         homeRepository.updateDevice(device);
-        logDeviceStateChange(device, actorType, actorName, previousState, describeDeviceState(device));
+        String newState = describeDeviceState(device);
+        logDeviceStateChange(device, actorType, actorName, previousState, newState);
+        evaluateRulesAfterDeviceChange(device, previousState, newState);
     }
 
     /**
@@ -317,8 +329,13 @@ public class SmartHomeSystem {
 
         String previousState = describeDeviceState(device);
         device.setValue(value);
+        String newState = describeDeviceState(device);
+        if (previousState.equals(newState)) {
+            return;
+        }
         homeRepository.updateDevice(device);
-        logDeviceStateChange(device, actorType, actorName, previousState, describeDeviceState(device));
+        logDeviceStateChange(device, actorType, actorName, previousState, newState);
+        evaluateRulesAfterDeviceChange(device, previousState, newState);
     }
 
     private void setSwitchStateInternal(String deviceId, boolean on, ActivityActorType actorType, String actorName) {
@@ -332,8 +349,13 @@ public class SmartHomeSystem {
 
         String previousState = describeDeviceState(device);
         device.setPowerState(on);
+        String newState = describeDeviceState(device);
+        if (previousState.equals(newState)) {
+            return;
+        }
         homeRepository.updateDevice(device);
-        logDeviceStateChange(device, actorType, actorName, previousState, describeDeviceState(device));
+        logDeviceStateChange(device, actorType, actorName, previousState, newState);
+        evaluateRulesAfterDeviceChange(device, previousState, newState);
     }
 
     /**
@@ -344,6 +366,104 @@ public class SmartHomeSystem {
      */
     public List<ActivityLogEntry> getActivityLog() {
         return List.copyOf(getActiveActivityLog());
+    }
+
+    /**
+     * Creates and stores an automation rule for the authenticated user.
+     *
+     * @param name the rule name
+     * @param triggerType the trigger type
+     * @param sourceDeviceId the source device id
+     * @param expectedTriggerValue the expected source device state
+     * @param actionType the action type
+     * @param targetDeviceId the target device id
+     * @param targetActionValue the target device state
+     * @return the created rule
+     */
+    public Rule createRule(String name, RuleTriggerType triggerType, String sourceDeviceId, Double expectedTriggerValue,
+                           RuleActionType actionType, String targetDeviceId, Double targetActionValue) {
+        requireAuthenticatedUser();
+        RuleTrigger trigger = createValidatedRuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue);
+        RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
+        Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
+        getActiveRules().add(rule);
+        homeRepository.saveRule(userSession.getCurrentUser().getEmail(), rule);
+        return rule;
+    }
+
+    /**
+     * Updates an existing automation rule of the authenticated user.
+     *
+     * @param ruleId the rule id
+     * @param name the rule name
+     * @param triggerType the trigger type
+     * @param sourceDeviceId the source device id
+     * @param expectedTriggerValue the expected source device state
+     * @param actionType the action type
+     * @param targetDeviceId the target device id
+     * @param targetActionValue the target device state
+     */
+    public void updateRule(String ruleId, String name, RuleTriggerType triggerType, String sourceDeviceId,
+                           Double expectedTriggerValue, RuleActionType actionType, String targetDeviceId,
+                           Double targetActionValue) {
+        requireAuthenticatedUser();
+        Rule rule = findRuleById(ruleId);
+        if (rule == null) {
+            throw new IllegalArgumentException("Rule not found");
+        }
+
+        RuleTrigger trigger = createValidatedRuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue);
+        RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
+        rule.update(name, trigger, action);
+        homeRepository.updateRule(rule);
+    }
+
+    /**
+     * Removes an automation rule of the authenticated user.
+     *
+     * @param ruleId the rule id
+     * @return {@code true} if the rule was removed
+     */
+    public boolean removeRule(String ruleId) {
+        requireAuthenticatedUser();
+        Rule rule = findRuleById(ruleId);
+        if (rule == null) {
+            return false;
+        }
+
+        boolean removed = getActiveRules().remove(rule);
+        if (removed) {
+            homeRepository.deleteRule(ruleId);
+        }
+        return removed;
+    }
+
+    /**
+     * Returns all rules of the active context.
+     *
+     * @return a defensive copy of the rules list
+     */
+    public List<Rule> getRules() {
+        return List.copyOf(getActiveRules());
+    }
+
+    /**
+     * Finds a rule by id in the active context.
+     *
+     * @param ruleId the rule id
+     * @return the matching rule, or {@code null} if none exists
+     */
+    public Rule findRuleById(String ruleId) {
+        if (ruleId == null || ruleId.isBlank()) {
+            return null;
+        }
+
+        for (Rule rule : getActiveRules()) {
+            if (rule.getId().equals(ruleId.trim())) {
+                return rule;
+            }
+        }
+        return null;
     }
 
     /**
@@ -608,6 +728,15 @@ public class SmartHomeSystem {
         return userSchedules.computeIfAbsent(userEmail, homeRepository::findSchedulesByUserEmail);
     }
 
+    private List<Rule> getActiveRules() {
+        if (!userSession.isLoggedIn()) {
+            return rules;
+        }
+
+        String userEmail = userSession.getCurrentUser().getEmail();
+        return userRules.computeIfAbsent(userEmail, homeRepository::findRulesByUserEmail);
+    }
+
     private void requireAuthenticatedUser() {
         if (!userSession.isLoggedIn()) {
             throw new IllegalStateException("User must be logged in");
@@ -643,6 +772,49 @@ public class SmartHomeSystem {
             throw new IllegalArgumentException("Rule name must not be blank");
         }
         return ruleName.trim();
+    }
+
+    private RuleTrigger createValidatedRuleTrigger(RuleTriggerType triggerType, String sourceDeviceId,
+                                                   Double expectedTriggerValue) {
+        if (triggerType != RuleTriggerType.DEVICE_STATE_CHANGE) {
+            throw new IllegalArgumentException("Only device state change triggers are supported for now");
+        }
+        validateAutomationValue(sourceDeviceId, expectedTriggerValue, "trigger");
+        return new RuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue);
+    }
+
+    private RuleAction createValidatedRuleAction(RuleActionType actionType, String targetDeviceId,
+                                                 Double targetActionValue) {
+        if (actionType != RuleActionType.SET_DEVICE_STATE) {
+            throw new IllegalArgumentException("Only device state actions are supported");
+        }
+        validateAutomationValue(targetDeviceId, targetActionValue, "action");
+        return new RuleAction(actionType, targetDeviceId, targetActionValue);
+    }
+
+    private void validateAutomationValue(String deviceId, Double value, String context) {
+        Device device = findDeviceById(deviceId);
+        if (device == null) {
+            throw new IllegalArgumentException("Device not found");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("A " + context + " value is required");
+        }
+
+        switch (device.getType()) {
+            case SWITCH -> {
+                if (value != 0.0 && value != 1.0) {
+                    throw new IllegalArgumentException("Switch " + context + " must be On or Off");
+                }
+            }
+            case BLIND -> {
+                if (value != 0.0 && value != 100.0) {
+                    throw new IllegalArgumentException("Blind " + context + " must be Open or Closed");
+                }
+            }
+            case DIMMER, THERMOSTAT, SENSOR -> validateScheduledValue(device.getType(), value);
+            default -> throw new IllegalStateException("Unexpected device type: " + device.getType());
+        }
     }
 
     private void validateScheduleTarget(String deviceId, ScheduleActionType actionType, Double targetValue) {
@@ -697,6 +869,92 @@ public class SmartHomeSystem {
         schedule.markExecuted(executionDate);
         if (userSession.isLoggedIn()) {
             homeRepository.updateSchedule(schedule);
+        }
+    }
+
+    private void evaluateRulesAfterDeviceChange(Device changedDevice, String previousState, String newState) {
+        if (previousState.equals(newState)) {
+            return;
+        }
+
+        for (Rule rule : getActiveRules()) {
+            if (!rule.getTrigger().getSourceDeviceId().equals(changedDevice.getId())) {
+                continue;
+            }
+            if (rule.getTrigger().getTriggerType() != RuleTriggerType.DEVICE_STATE_CHANGE) {
+                continue;
+            }
+            if (!ruleMatchesDeviceState(rule, changedDevice)) {
+                continue;
+            }
+
+            executeRule(rule);
+        }
+    }
+
+    private boolean ruleMatchesDeviceState(Rule rule, Device device) {
+        Double expectedValue = rule.getTrigger().getExpectedValue();
+        return switch (device.getType()) {
+            case SWITCH -> (expectedValue != null && expectedValue == 1.0) == device.isOn();
+            case BLIND -> expectedValue != null && Double.compare(device.getValue(), expectedValue) == 0;
+            case DIMMER, THERMOSTAT, SENSOR ->
+                    expectedValue != null && Double.compare(device.getValue(), expectedValue) == 0;
+        };
+    }
+
+    private void executeRule(Rule rule) {
+        if (executingRuleIds.contains(rule.getId())) {
+            return;
+        }
+
+        executingRuleIds.add(rule.getId());
+        try {
+            RuleAction action = rule.getAction();
+            Device targetDevice = findDeviceById(action.getTargetDeviceId());
+            if (targetDevice == null) {
+                throw new IllegalArgumentException("Device not found");
+            }
+
+            if (targetDevice.getType() == DeviceType.SWITCH) {
+                setSwitchStateByRule(targetDevice.getId(), action.getTargetValue() == 1.0, rule.getName());
+            } else {
+                updateDeviceValueByRule(targetDevice.getId(), action.getTargetValue(), rule.getName());
+            }
+        } finally {
+            executingRuleIds.remove(rule.getId());
+        }
+    }
+
+    private void removeRulesForDevice(String deviceId) {
+        List<Rule> rulesToRemove = new ArrayList<>();
+        for (Rule rule : getActiveRules()) {
+            if (rule.getTrigger().getSourceDeviceId().equals(deviceId)
+                    || rule.getAction().getTargetDeviceId().equals(deviceId)) {
+                rulesToRemove.add(rule);
+            }
+        }
+        deleteRules(rulesToRemove);
+    }
+
+    private void removeRulesForRoom(Room room) {
+        List<Rule> rulesToRemove = new ArrayList<>();
+        for (Rule rule : getActiveRules()) {
+            Room triggerRoom = findRoomContainingDevice(rule.getTrigger().getSourceDeviceId());
+            Room actionRoom = findRoomContainingDevice(rule.getAction().getTargetDeviceId());
+            if ((triggerRoom != null && triggerRoom.getId().equals(room.getId()))
+                    || (actionRoom != null && actionRoom.getId().equals(room.getId()))) {
+                rulesToRemove.add(rule);
+            }
+        }
+        deleteRules(rulesToRemove);
+    }
+
+    private void deleteRules(List<Rule> rulesToRemove) {
+        for (Rule rule : rulesToRemove) {
+            getActiveRules().remove(rule);
+            if (userSession.isLoggedIn()) {
+                homeRepository.deleteRule(rule.getId());
+            }
         }
     }
 

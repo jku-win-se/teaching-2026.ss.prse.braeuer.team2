@@ -3,6 +3,7 @@ package at.jku.se.smarthome.repository;
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.Room;
 import at.jku.se.smarthome.model.ActivityLogEntry;
+import at.jku.se.smarthome.model.Rule;
 import at.jku.se.smarthome.model.Schedule;
 
 import java.util.List;
@@ -35,6 +36,14 @@ public interface HomeRepository {
      * @return the stored schedules for the user
      */
     List<Schedule> findSchedulesByUserEmail(String userEmail);
+
+    /**
+     * Loads all rules for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @return the stored rules for the user
+     */
+    List<Rule> findRulesByUserEmail(String userEmail);
 
     /**
      * Stores a room for the given user.
@@ -96,6 +105,21 @@ public interface HomeRepository {
     void updateSchedule(Schedule schedule);
 
     /**
+     * Stores a rule for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @param rule the rule to store
+     */
+    void saveRule(String userEmail, Rule rule);
+
+    /**
+     * Updates a stored rule.
+     *
+     * @param rule the rule to update
+     */
+    void updateRule(Rule rule);
+
+    /**
      * Stores an activity log entry for the given user.
      *
      * @param userEmail the owning user's email address
@@ -109,6 +133,13 @@ public interface HomeRepository {
      * @param scheduleId the schedule id
      */
     void deleteSchedule(String scheduleId);
+
+    /**
+     * Deletes a stored rule.
+     *
+     * @param ruleId the rule id
+     */
+    void deleteRule(String ruleId);
 
     /**
      * Deletes a stored device.

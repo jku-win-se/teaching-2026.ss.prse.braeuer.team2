@@ -28,6 +28,7 @@
                                 prefWidth="150"
                                 style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
                         <Button text="Rules"
+                                onAction="#openRules"
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Schedules"

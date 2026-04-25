@@ -119,6 +119,21 @@ public class DashboardController {
         }
     }
 
+    @FXML
+    public void openRules() {
+        try {
+            stopSchedulePolling();
+            FXMLLoader loader = new FXMLLoader(
+                    DashboardController.class.getResource("/at/jku/se/smarthome/fxml/rules-view.fxml")
+            );
+            Scene scene = new Scene(loader.load(), 1000, 600);
+            Stage stage = (Stage) roomListContainer.getScene().getWindow();
+            stage.setScene(scene);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to open rules view", exception);
+        }
+    }
+
     private void refreshDashboard() {
         refreshRoomOverview();
     }

@@ -3,6 +3,7 @@ package at.jku.se.smarthome.repository;
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.Room;
 import at.jku.se.smarthome.model.ActivityLogEntry;
+import at.jku.se.smarthome.model.Rule;
 import at.jku.se.smarthome.model.Schedule;
 
 import java.util.ArrayList;
@@ -25,6 +26,11 @@ public class InMemoryHomeRepository implements HomeRepository {
 
     @Override
     public List<Schedule> findSchedulesByUserEmail(String userEmail) {
+        return new ArrayList<>();
+    }
+
+    @Override
+    public List<Rule> findRulesByUserEmail(String userEmail) {
         return new ArrayList<>();
     }
 
@@ -61,11 +67,23 @@ public class InMemoryHomeRepository implements HomeRepository {
     }
 
     @Override
+    public void saveRule(String userEmail, Rule rule) {
+    }
+
+    @Override
+    public void updateRule(Rule rule) {
+    }
+
+    @Override
     public void saveActivityLogEntry(String userEmail, ActivityLogEntry entry) {
     }
 
     @Override
     public void deleteSchedule(String scheduleId) {
+    }
+
+    @Override
+    public void deleteRule(String ruleId) {
     }
 
     @Override
