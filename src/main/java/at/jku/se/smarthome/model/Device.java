@@ -97,6 +97,18 @@ public class Device {
         this.isOn = !this.isOn;
     }
 
+    /**
+     * Sets the on/off state of a switch device explicitly.
+     *
+     * @param on the target state
+     */
+    public void setPowerState(boolean on) {
+        if (type != DeviceType.SWITCH) {
+            throw new IllegalStateException("Explicit power state is only supported for SWITCH devices");
+        }
+        this.isOn = on;
+    }
+
     public void setValue(double value) {
         switch (type) {
             case DIMMER -> setDimmerValue(value);

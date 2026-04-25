@@ -53,6 +53,20 @@ public class ActivityController {
     }
 
     @FXML
+    public void openSchedules() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    ActivityController.class.getResource("/at/jku/se/smarthome/fxml/schedules-view.fxml")
+            );
+            Scene scene = new Scene(loader.load(), 1000, 600);
+            Stage stage = (Stage) activityListContainer.getScene().getWindow();
+            stage.setScene(scene);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to open schedules view", exception);
+        }
+    }
+
+    @FXML
     public void logout() {
         system.logoutUser();
         openAuthView();

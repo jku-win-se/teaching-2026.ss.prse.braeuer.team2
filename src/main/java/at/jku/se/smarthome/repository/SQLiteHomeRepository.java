@@ -5,6 +5,8 @@ import at.jku.se.smarthome.model.ActivityLogEntry;
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.DeviceType;
 import at.jku.se.smarthome.model.Room;
+import at.jku.se.smarthome.model.Schedule;
+import at.jku.se.smarthome.model.ScheduleActionType;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -12,11 +14,16 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * SQLite-backed repository for rooms and devices.
@@ -117,6 +124,33 @@ public class SQLiteHomeRepository implements HomeRepository {
     }
 
     @Override
+    public List<Schedule> findSchedulesByUserEmail(String userEmail) {
+        String sql = """
+                SELECT id, name, device_id, action_type, target_value, execution_time, recurring_days, last_executed_on
+                FROM schedules
+                WHERE user_email = ?
+                ORDER BY name, id
+                """;
+
+        List<Schedule> schedules = new ArrayList<>();
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userEmail);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    schedules.add(mapSchedule(resultSet));
+                }
+            }
+
+            return schedules;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to query schedules", exception);
+        }
+    }
+
+    @Override
     public void saveRoom(String userEmail, Room room) {
         String sql = "INSERT INTO rooms(id, user_email, name) VALUES(?, ?, ?)";
 
@@ -207,6 +241,47 @@ public class SQLiteHomeRepository implements HomeRepository {
     }
 
     @Override
+    public void saveSchedule(String userEmail, Schedule schedule) {
+        String sql = """
+                INSERT INTO schedules(
+                    id, user_email, name, device_id, action_type, target_value, execution_time, recurring_days, last_executed_on
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindSchedule(statement, userEmail, schedule);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to save schedule", exception);
+        }
+    }
+
+    @Override
+    public void updateSchedule(Schedule schedule) {
+        String sql = """
+                UPDATE schedules
+                SET name = ?, action_type = ?, target_value = ?, execution_time = ?, recurring_days = ?, last_executed_on = ?
+                WHERE id = ?
+                """;
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, schedule.getName());
+            statement.setString(2, schedule.getActionType().name());
+            setNullableDouble(statement, 3, schedule.getTargetValue());
+            statement.setString(4, schedule.getExecutionTime().toString());
+            statement.setString(5, serializeRecurringDays(schedule.getRecurringDays()));
+            setNullableString(statement, 6, schedule.getLastExecutedOn() == null ? null : schedule.getLastExecutedOn().toString());
+            statement.setString(7, schedule.getId());
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to update schedule", exception);
+        }
+    }
+
+    @Override
     public void saveActivityLogEntry(String userEmail, ActivityLogEntry entry) {
         String sql = """
                 INSERT INTO activity_log(
@@ -228,6 +303,19 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to save activity log entry", exception);
+        }
+    }
+
+    @Override
+    public void deleteSchedule(String scheduleId) {
+        String sql = "DELETE FROM schedules WHERE id = ?";
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, scheduleId);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete schedule", exception);
         }
     }
 
@@ -264,6 +352,76 @@ public class SQLiteHomeRepository implements HomeRepository {
         }
 
         return device;
+    }
+
+    private Schedule mapSchedule(ResultSet resultSet) throws SQLException {
+        Schedule schedule = new Schedule(
+                resultSet.getString("id"),
+                resultSet.getString("name"),
+                resultSet.getString("device_id"),
+                ScheduleActionType.valueOf(resultSet.getString("action_type")),
+                readNullableDouble(resultSet, "target_value"),
+                LocalTime.parse(resultSet.getString("execution_time")),
+                parseRecurringDays(resultSet.getString("recurring_days"))
+        );
+
+        String lastExecutedOn = resultSet.getString("last_executed_on");
+        if (lastExecutedOn != null && !lastExecutedOn.isBlank()) {
+            schedule.markExecuted(LocalDate.parse(lastExecutedOn));
+        }
+        return schedule;
+    }
+
+    private void bindSchedule(PreparedStatement statement, String userEmail, Schedule schedule) throws SQLException {
+        statement.setString(1, schedule.getId());
+        statement.setString(2, userEmail);
+        statement.setString(3, schedule.getName());
+        statement.setString(4, schedule.getDeviceId());
+        statement.setString(5, schedule.getActionType().name());
+        setNullableDouble(statement, 6, schedule.getTargetValue());
+        statement.setString(7, schedule.getExecutionTime().toString());
+        statement.setString(8, serializeRecurringDays(schedule.getRecurringDays()));
+        setNullableString(statement, 9, schedule.getLastExecutedOn() == null ? null : schedule.getLastExecutedOn().toString());
+    }
+
+    private void setNullableDouble(PreparedStatement statement, int index, Double value) throws SQLException {
+        if (value == null) {
+            statement.setNull(index, java.sql.Types.REAL);
+            return;
+        }
+        statement.setDouble(index, value);
+    }
+
+    private void setNullableString(PreparedStatement statement, int index, String value) throws SQLException {
+        if (value == null) {
+            statement.setNull(index, java.sql.Types.VARCHAR);
+            return;
+        }
+        statement.setString(index, value);
+    }
+
+    private Double readNullableDouble(ResultSet resultSet, String columnName) throws SQLException {
+        double value = resultSet.getDouble(columnName);
+        if (resultSet.wasNull()) {
+            return null;
+        }
+        return value;
+    }
+
+    private String serializeRecurringDays(Set<DayOfWeek> recurringDays) {
+        List<String> dayNames = new ArrayList<>();
+        for (DayOfWeek dayOfWeek : recurringDays) {
+            dayNames.add(dayOfWeek.name());
+        }
+        return String.join(",", dayNames);
+    }
+
+    private Set<DayOfWeek> parseRecurringDays(String recurringDays) {
+        EnumSet<DayOfWeek> days = EnumSet.noneOf(DayOfWeek.class);
+        for (String token : recurringDays.split(",")) {
+            days.add(DayOfWeek.valueOf(token.trim()));
+        }
+        return days;
     }
 
     private Connection openConnection() throws SQLException {
@@ -308,12 +466,28 @@ public class SQLiteHomeRepository implements HomeRepository {
                     FOREIGN KEY(user_email) REFERENCES users(email) ON DELETE CASCADE
                 )
                 """;
+        String createSchedulesSql = """
+                CREATE TABLE IF NOT EXISTS schedules (
+                    id TEXT PRIMARY KEY,
+                    user_email TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    device_id TEXT NOT NULL,
+                    action_type TEXT NOT NULL,
+                    target_value REAL,
+                    execution_time TEXT NOT NULL,
+                    recurring_days TEXT NOT NULL,
+                    last_executed_on TEXT,
+                    FOREIGN KEY(user_email) REFERENCES users(email) ON DELETE CASCADE,
+                    FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
+                )
+                """;
 
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {
             statement.execute(createRoomsSql);
             statement.execute(createDevicesSql);
             statement.execute(createActivityLogSql);
+            statement.execute(createSchedulesSql);
             ensureActivityLogColumns(connection);
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to initialize home schema", exception);

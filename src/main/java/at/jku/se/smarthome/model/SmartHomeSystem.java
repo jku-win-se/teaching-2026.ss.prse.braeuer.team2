@@ -1,7 +1,11 @@
 package at.jku.se.smarthome.model;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -10,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -33,15 +38,17 @@ public class SmartHomeSystem {
 
     private final List<Room> rooms;
     private final List<ActivityLogEntry> activityLog;
+    private final List<Schedule> schedules;
     private final Map<String, List<Room>> userRooms;
     private final Map<String, List<ActivityLogEntry>> userActivityLog;
+    private final Map<String, List<Schedule>> userSchedules;
     private final UserRepository userRepository;
     private final HomeRepository homeRepository;
     private final UserSession userSession;
     private final Clock clock;
 
     public SmartHomeSystem() {
-        this(new InMemoryUserRepository(), new InMemoryHomeRepository(), Clock.systemUTC());
+        this(new InMemoryUserRepository(), new InMemoryHomeRepository(), Clock.systemDefaultZone());
     }
 
     /**
@@ -50,7 +57,7 @@ public class SmartHomeSystem {
      * @param userRepository the repository used to persist users
      */
     public SmartHomeSystem(UserRepository userRepository) {
-        this(userRepository, resolveHomeRepository(userRepository), Clock.systemUTC());
+        this(userRepository, resolveHomeRepository(userRepository), Clock.systemDefaultZone());
     }
 
     /**
@@ -60,7 +67,7 @@ public class SmartHomeSystem {
      * @param homeRepository the repository used to persist rooms and devices
      */
     public SmartHomeSystem(UserRepository userRepository, HomeRepository homeRepository) {
-        this(userRepository, homeRepository, Clock.systemUTC());
+        this(userRepository, homeRepository, Clock.systemDefaultZone());
     }
 
     /**
@@ -73,8 +80,10 @@ public class SmartHomeSystem {
     public SmartHomeSystem(UserRepository userRepository, HomeRepository homeRepository, Clock clock) {
         this.rooms = new ArrayList<>();
         this.activityLog = new ArrayList<>();
+        this.schedules = new ArrayList<>();
         this.userRooms = new HashMap<>();
         this.userActivityLog = new HashMap<>();
+        this.userSchedules = new HashMap<>();
         this.userRepository = userRepository;
         this.homeRepository = homeRepository;
         this.userSession = new UserSession();
@@ -91,7 +100,7 @@ public class SmartHomeSystem {
             persistentSystem = new SmartHomeSystem(
                     new SQLiteUserRepository(DEFAULT_DATABASE_URL),
                     new SQLiteHomeRepository(DEFAULT_DATABASE_URL),
-                    Clock.systemUTC()
+                    Clock.systemDefaultZone()
             );
         }
         return persistentSystem;
@@ -113,6 +122,7 @@ public class SmartHomeSystem {
             homeRepository.deleteRoomsByUserEmail(userSession.getCurrentUser().getEmail());
         }
         getActiveRooms().clear();
+        getActiveSchedules().clear();
     }
 
     /**
@@ -157,6 +167,7 @@ public class SmartHomeSystem {
         if (room == null) {
             return false;
         }
+        removeSchedulesForRoom(room);
         boolean removed = getActiveRooms().remove(room);
         if (removed) {
             homeRepository.deleteRoom(roomId);
@@ -226,6 +237,7 @@ public class SmartHomeSystem {
     public boolean removeDevice(String deviceId) {
         for (Room room : getActiveRooms()) {
             if (room.removeDevice(deviceId)) {
+                removeSchedulesForDevice(deviceId);
                 homeRepository.deleteDevice(deviceId);
                 return true;
             }
@@ -250,6 +262,17 @@ public class SmartHomeSystem {
      */
     public void toggleDeviceByRule(String deviceId, String ruleName) {
         toggleDeviceInternal(deviceId, ActivityActorType.RULE, validateRuleName(ruleName));
+    }
+
+    /**
+     * Sets a switch device to an explicit state because of an automation rule and persists the changed state.
+     *
+     * @param deviceId the device id
+     * @param on the target switch state
+     * @param ruleName the executing rule name
+     */
+    public void setSwitchStateByRule(String deviceId, boolean on, String ruleName) {
+        setSwitchStateInternal(deviceId, on, ActivityActorType.RULE, validateRuleName(ruleName));
     }
 
     private void toggleDeviceInternal(String deviceId, ActivityActorType actorType, String actorName) {
@@ -298,6 +321,21 @@ public class SmartHomeSystem {
         logDeviceStateChange(device, actorType, actorName, previousState, describeDeviceState(device));
     }
 
+    private void setSwitchStateInternal(String deviceId, boolean on, ActivityActorType actorType, String actorName) {
+        Device device = findDeviceById(deviceId);
+        if (device == null) {
+            throw new IllegalArgumentException("Device not found");
+        }
+        if (device.getType() != DeviceType.SWITCH) {
+            throw new IllegalArgumentException("Device is not a switch");
+        }
+
+        String previousState = describeDeviceState(device);
+        device.setPowerState(on);
+        homeRepository.updateDevice(device);
+        logDeviceStateChange(device, actorType, actorName, previousState, describeDeviceState(device));
+    }
+
     /**
      * Returns the activity log of the current context.
      * If a user is logged in, their log is returned; otherwise the anonymous in-memory log is returned.
@@ -306,6 +344,127 @@ public class SmartHomeSystem {
      */
     public List<ActivityLogEntry> getActivityLog() {
         return List.copyOf(getActiveActivityLog());
+    }
+
+    /**
+     * Creates and stores a recurring time-based schedule for the authenticated user.
+     *
+     * @param name the schedule name
+     * @param deviceId the target device id
+     * @param actionType the action to execute
+     * @param targetValue the optional numeric target value
+     * @param executionTime the time of day
+     * @param recurringDays the repeating weekdays
+     * @return the created schedule
+     */
+    public Schedule createSchedule(String name, String deviceId, ScheduleActionType actionType, Double targetValue,
+                                   LocalTime executionTime, Set<DayOfWeek> recurringDays) {
+        requireAuthenticatedUser();
+        validateScheduleTarget(deviceId, actionType, targetValue);
+
+        Schedule schedule = new Schedule(
+                UUID.randomUUID().toString(),
+                name,
+                deviceId,
+                actionType,
+                targetValue,
+                executionTime,
+                recurringDays
+        );
+        getActiveSchedules().add(schedule);
+        homeRepository.saveSchedule(userSession.getCurrentUser().getEmail(), schedule);
+        return schedule;
+    }
+
+    /**
+     * Updates an existing schedule of the authenticated user.
+     *
+     * @param scheduleId the schedule id
+     * @param name the schedule name
+     * @param actionType the action to execute
+     * @param targetValue the optional numeric target value
+     * @param executionTime the time of day
+     * @param recurringDays the repeating weekdays
+     */
+    public void updateSchedule(String scheduleId, String name, ScheduleActionType actionType, Double targetValue,
+                               LocalTime executionTime, Set<DayOfWeek> recurringDays) {
+        requireAuthenticatedUser();
+        Schedule schedule = findScheduleById(scheduleId);
+        if (schedule == null) {
+            throw new IllegalArgumentException("Schedule not found");
+        }
+
+        validateScheduleTarget(schedule.getDeviceId(), actionType, targetValue);
+        schedule.update(name, actionType, targetValue, executionTime, recurringDays);
+        homeRepository.updateSchedule(schedule);
+    }
+
+    /**
+     * Removes a schedule of the authenticated user.
+     *
+     * @param scheduleId the schedule id
+     * @return {@code true} if the schedule was removed
+     */
+    public boolean removeSchedule(String scheduleId) {
+        requireAuthenticatedUser();
+        Schedule schedule = findScheduleById(scheduleId);
+        if (schedule == null) {
+            return false;
+        }
+
+        boolean removed = getActiveSchedules().remove(schedule);
+        if (removed) {
+            homeRepository.deleteSchedule(scheduleId);
+        }
+        return removed;
+    }
+
+    /**
+     * Returns all schedules of the active context.
+     *
+     * @return a defensive copy of the schedules list
+     */
+    public List<Schedule> getSchedules() {
+        return List.copyOf(getActiveSchedules());
+    }
+
+    /**
+     * Finds a schedule by id in the active context.
+     *
+     * @param scheduleId the schedule id
+     * @return the matching schedule, or {@code null} if none exists
+     */
+    public Schedule findScheduleById(String scheduleId) {
+        if (scheduleId == null || scheduleId.isBlank()) {
+            return null;
+        }
+
+        for (Schedule schedule : getActiveSchedules()) {
+            if (schedule.getId().equals(scheduleId.trim())) {
+                return schedule;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Executes all schedules that are due at the current clock time.
+     *
+     * @return the number of executed schedules
+     */
+    public int executeDueSchedules() {
+        LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), clock.getZone());
+        int executedCount = 0;
+
+        for (Schedule schedule : getActiveSchedules()) {
+            if (!schedule.isDue(now.toLocalDate(), now.toLocalTime())) {
+                continue;
+            }
+
+            executeSchedule(schedule, now.toLocalDate());
+            executedCount++;
+        }
+        return executedCount;
     }
 
     public Device findDeviceById(String deviceId) {
@@ -440,6 +599,15 @@ public class SmartHomeSystem {
         return userActivityLog.computeIfAbsent(userEmail, homeRepository::findActivityLogByUserEmail);
     }
 
+    private List<Schedule> getActiveSchedules() {
+        if (!userSession.isLoggedIn()) {
+            return schedules;
+        }
+
+        String userEmail = userSession.getCurrentUser().getEmail();
+        return userSchedules.computeIfAbsent(userEmail, homeRepository::findSchedulesByUserEmail);
+    }
+
     private void requireAuthenticatedUser() {
         if (!userSession.isLoggedIn()) {
             throw new IllegalStateException("User must be logged in");
@@ -475,6 +643,104 @@ public class SmartHomeSystem {
             throw new IllegalArgumentException("Rule name must not be blank");
         }
         return ruleName.trim();
+    }
+
+    private void validateScheduleTarget(String deviceId, ScheduleActionType actionType, Double targetValue) {
+        Device device = findDeviceById(deviceId);
+        if (device == null) {
+            throw new IllegalArgumentException("Device not found");
+        }
+        if (actionType == null) {
+            throw new IllegalArgumentException("Schedule action type must not be null");
+        }
+
+        if (device.getType() == DeviceType.SWITCH) {
+            if (actionType == ScheduleActionType.TOGGLE) {
+                return;
+            }
+            if (actionType != ScheduleActionType.SET_VALUE) {
+                throw new IllegalArgumentException("Switch schedules must define a target state");
+            }
+            if (targetValue == null || (targetValue != 0.0 && targetValue != 1.0)) {
+                throw new IllegalArgumentException("Switch schedules must target On or Off");
+            }
+            return;
+        }
+
+        if (actionType != ScheduleActionType.SET_VALUE) {
+            throw new IllegalArgumentException("This device type requires a target value");
+        }
+        if (targetValue == null) {
+            throw new IllegalArgumentException("A target value is required");
+        }
+        validateScheduledValue(device.getType(), targetValue);
+    }
+
+    private void validateScheduledValue(DeviceType deviceType, double targetValue) {
+        Device probe = new Device("schedule-validation", "Schedule Validation", deviceType);
+        probe.setValue(targetValue);
+    }
+
+    private void executeSchedule(Schedule schedule, LocalDate executionDate) {
+        Device device = findDeviceById(schedule.getDeviceId());
+        if (device == null) {
+            throw new IllegalArgumentException("Device not found");
+        }
+
+        if (schedule.getActionType() == ScheduleActionType.TOGGLE) {
+            toggleDeviceByRule(schedule.getDeviceId(), schedule.getName());
+        } else if (device.getType() == DeviceType.SWITCH) {
+            setSwitchStateByRule(schedule.getDeviceId(), schedule.getTargetValue() == 1.0, schedule.getName());
+        } else {
+            updateDeviceValueByRule(schedule.getDeviceId(), schedule.getTargetValue(), schedule.getName());
+        }
+        schedule.markExecuted(executionDate);
+        if (userSession.isLoggedIn()) {
+            homeRepository.updateSchedule(schedule);
+        }
+    }
+
+    private void removeSchedulesForRoom(Room room) {
+        List<Schedule> schedulesToRemove = new ArrayList<>();
+        for (Schedule schedule : getActiveSchedules()) {
+            Device device = findDeviceById(schedule.getDeviceId());
+            if (device == null) {
+                continue;
+            }
+            Room owningRoom = findRoomContainingDevice(device.getId());
+            if (owningRoom != null && owningRoom.getId().equals(room.getId())) {
+                schedulesToRemove.add(schedule);
+            }
+        }
+        deleteSchedules(schedulesToRemove);
+    }
+
+    private void removeSchedulesForDevice(String deviceId) {
+        List<Schedule> schedulesToRemove = new ArrayList<>();
+        for (Schedule schedule : getActiveSchedules()) {
+            if (schedule.getDeviceId().equals(deviceId)) {
+                schedulesToRemove.add(schedule);
+            }
+        }
+        deleteSchedules(schedulesToRemove);
+    }
+
+    private void deleteSchedules(List<Schedule> schedulesToRemove) {
+        for (Schedule schedule : schedulesToRemove) {
+            getActiveSchedules().remove(schedule);
+            if (userSession.isLoggedIn()) {
+                homeRepository.deleteSchedule(schedule.getId());
+            }
+        }
+    }
+
+    private Room findRoomContainingDevice(String deviceId) {
+        for (Room room : getActiveRooms()) {
+            if (room.findDeviceById(deviceId) != null) {
+                return room;
+            }
+        }
+        return null;
     }
 
     private String describeDeviceState(Device device) {
