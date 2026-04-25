@@ -3,6 +3,7 @@ package at.jku.se.smarthome.repository;
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.Room;
 import at.jku.se.smarthome.model.ActivityLogEntry;
+import at.jku.se.smarthome.model.Schedule;
 
 import java.util.List;
 
@@ -26,6 +27,14 @@ public interface HomeRepository {
      * @return the stored activity log entries for the user
      */
     List<ActivityLogEntry> findActivityLogByUserEmail(String userEmail);
+
+    /**
+     * Loads all schedules for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @return the stored schedules for the user
+     */
+    List<Schedule> findSchedulesByUserEmail(String userEmail);
 
     /**
      * Stores a room for the given user.
@@ -72,12 +81,34 @@ public interface HomeRepository {
     void updateDevice(Device device);
 
     /**
+     * Stores a schedule for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @param schedule the schedule to store
+     */
+    void saveSchedule(String userEmail, Schedule schedule);
+
+    /**
+     * Updates a stored schedule.
+     *
+     * @param schedule the schedule to update
+     */
+    void updateSchedule(Schedule schedule);
+
+    /**
      * Stores an activity log entry for the given user.
      *
      * @param userEmail the owning user's email address
      * @param entry the log entry to store
      */
     void saveActivityLogEntry(String userEmail, ActivityLogEntry entry);
+
+    /**
+     * Deletes a stored schedule.
+     *
+     * @param scheduleId the schedule id
+     */
+    void deleteSchedule(String scheduleId);
 
     /**
      * Deletes a stored device.

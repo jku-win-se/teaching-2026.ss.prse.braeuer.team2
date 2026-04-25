@@ -1,5 +1,10 @@
 package at.jku.se.smarthome.model;
 
+@SuppressWarnings({
+        "PMD.CommentRequired",
+        "PMD.ShortVariable",
+        "PMD.AvoidFieldNameMatchingMethodName"
+})
 public class Device {
     private final String id;
     private String name;
@@ -97,6 +102,18 @@ public class Device {
         this.isOn = !this.isOn;
     }
 
+    /**
+     * Sets the on/off state of a switch device explicitly.
+     *
+     * @param on the target state
+     */
+    public void setPowerState(boolean on) {
+        if (type != DeviceType.SWITCH) {
+            throw new IllegalStateException("Explicit power state is only supported for SWITCH devices");
+        }
+        this.isOn = on;
+    }
+
     public void setValue(double value) {
         switch (type) {
             case DIMMER -> setDimmerValue(value);
@@ -137,20 +154,27 @@ public class Device {
 
     //Gerätestatus anzeigen
     public String getStatusText() {
+        String statusText;
         switch (type) {
             case SWITCH:
-                return isOn ? "On" : "Off";
+                statusText = isOn ? "On" : "Off";
+                break;
             case DIMMER:
-                return value + " " + unit;
+                statusText = value + " " + unit;
+                break;
             case THERMOSTAT:
-                return value + " " + unit;
+                statusText = value + " " + unit;
+                break;
             case BLIND:
-                return isOn ? "Open" : "Closed";
+                statusText = isOn ? "Open" : "Closed";
+                break;
             case SENSOR:
-                return String.valueOf(value);
+                statusText = String.valueOf(value);
+                break;
             default:
                 throw new IllegalStateException("Unexpected device type: " + type);
         }
+        return statusText;
     }
 
 }

@@ -4,6 +4,8 @@ import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.DeviceType;
 import at.jku.se.smarthome.model.Room;
 import at.jku.se.smarthome.model.SmartHomeSystem;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -20,6 +22,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -29,8 +32,8 @@ import java.util.Optional;
 
 @SuppressWarnings("PMD")
 public class DashboardController {
-
     private SmartHomeSystem system;
+    private Timeline schedulePollingTimeline;
 
     @FXML
     private VBox roomListContainer;
@@ -41,11 +44,13 @@ public class DashboardController {
             Platform.runLater(this::openAuthView);
             return;
         }
-        refreshRoomOverview();
+        startSchedulePolling();
+        refreshDashboard();
     }
 
     @FXML
     public void logout() {
+        stopSchedulePolling();
         system.logoutUser();
         openAuthView();
     }
@@ -54,9 +59,10 @@ public class DashboardController {
     public void openActivity() {
         try {
             FXMLLoader loader = new FXMLLoader(
-                    DashboardController.class.getResource("/at/jku/se/smarthome/fxml/activity-view.fxml")
+                DashboardController.class.getResource("/at/jku/se/smarthome/fxml/activity-view.fxml")
             );
             Scene scene = new Scene(loader.load(), 1000, 600);
+            stopSchedulePolling();
             Stage stage = (Stage) roomListContainer.getScene().getWindow();
             stage.setScene(scene);
         } catch (IOException exception) {
@@ -75,7 +81,7 @@ public class DashboardController {
         if (result.isPresent()) {
             try {
                 system.createRoom(result.get());
-                refreshRoomOverview();
+                refreshDashboard();
             } catch (IllegalArgumentException exception) {
                 showMessage("Invalid room name", exception.getMessage());
             }
@@ -96,6 +102,25 @@ public class DashboardController {
         }
 
         createDeviceForRoom(selectedRoom.get());
+    }
+
+    @FXML
+    public void openSchedules() {
+        try {
+            stopSchedulePolling();
+            FXMLLoader loader = new FXMLLoader(
+                    DashboardController.class.getResource("/at/jku/se/smarthome/fxml/schedules-view.fxml")
+            );
+            Scene scene = new Scene(loader.load(), 1000, 600);
+            Stage stage = (Stage) roomListContainer.getScene().getWindow();
+            stage.setScene(scene);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to open schedules view", exception);
+        }
+    }
+
+    private void refreshDashboard() {
+        refreshRoomOverview();
     }
 
     private void refreshRoomOverview() {
@@ -184,7 +209,7 @@ public class DashboardController {
                 toggleButton.setOnAction(event -> {
                     try {
                         system.toggleDevice(device.getId());
-                        refreshRoomOverview();
+                        refreshDashboard();
                     } catch (IllegalArgumentException | IllegalStateException exception) {
                         showMessage("Device update failed", exception.getMessage());
                     }
@@ -202,7 +227,7 @@ public class DashboardController {
                     int roundedValue = (int) Math.round(dimmerSlider.getValue());
                     try {
                         system.updateDeviceValue(device.getId(), roundedValue);
-                        refreshRoomOverview();
+                        refreshDashboard();
                     } catch (IllegalArgumentException | IllegalStateException exception) {
                         showMessage("Device update failed", exception.getMessage());
                     }
@@ -220,7 +245,7 @@ public class DashboardController {
                     int roundedValue = (int) Math.round(thermostatSlider.getValue());
                     try {
                         system.updateDeviceValue(device.getId(), roundedValue);
-                        refreshRoomOverview();
+                        refreshDashboard();
                     } catch (IllegalArgumentException | IllegalStateException exception) {
                         showMessage("Device update failed", exception.getMessage());
                     }
@@ -237,7 +262,7 @@ public class DashboardController {
                         } else {
                             system.updateDeviceValue(device.getId(), 100);
                         }
-                        refreshRoomOverview();
+                        refreshDashboard();
                     } catch (IllegalArgumentException | IllegalStateException exception) {
                         showMessage("Device update failed", exception.getMessage());
                     }
@@ -263,7 +288,7 @@ public class DashboardController {
         if (result.isPresent()) {
             try {
                 system.renameRoom(room.getId(), result.get());
-                refreshRoomOverview();
+                refreshDashboard();
             } catch (IllegalArgumentException exception) {
                 showMessage("Invalid room name", exception.getMessage());
             }
@@ -272,7 +297,7 @@ public class DashboardController {
 
     private void deleteRoom(Room room) {
         system.removeRoom(room.getId());
-        refreshRoomOverview();
+        refreshDashboard();
     }
 
     private void renameDevice(Device device) {
@@ -285,7 +310,7 @@ public class DashboardController {
         if (result.isPresent()) {
             try {
                 system.renameDevice(device.getId(), result.get());
-                refreshRoomOverview();
+                refreshDashboard();
             } catch (IllegalArgumentException exception) {
                 showMessage("Invalid device name", exception.getMessage());
             }
@@ -294,7 +319,7 @@ public class DashboardController {
 
     private void deleteDevice(Device device) {
         system.removeDevice(device.getId());
-        refreshRoomOverview();
+        refreshDashboard();
     }
 
     private void setSensorValue(Device device) {
@@ -308,7 +333,7 @@ public class DashboardController {
             try {
                 double value = Double.parseDouble(result.get().trim());
                 system.updateDeviceValue(device.getId(), value);
-                refreshRoomOverview();
+                refreshDashboard();
             } catch (NumberFormatException exception) {
                 showMessage("Invalid value", "Please enter a numeric value.");
             } catch (IllegalArgumentException | IllegalStateException exception) {
@@ -350,9 +375,31 @@ public class DashboardController {
 
         try {
             system.createDevice(room.getId(), selectedDeviceName.get(), selectedDeviceType.get());
-            refreshRoomOverview();
+            refreshDashboard();
         } catch (IllegalArgumentException exception) {
             showMessage("Invalid device", exception.getMessage());
+        }
+    }
+
+    private void startSchedulePolling() {
+        stopSchedulePolling();
+        schedulePollingTimeline = new Timeline(new KeyFrame(Duration.seconds(15), event -> executeDueSchedules()));
+        schedulePollingTimeline.setCycleCount(Timeline.INDEFINITE);
+        schedulePollingTimeline.play();
+        executeDueSchedules();
+    }
+
+    private void stopSchedulePolling() {
+        if (schedulePollingTimeline != null) {
+            schedulePollingTimeline.stop();
+            schedulePollingTimeline = null;
+        }
+    }
+
+    private void executeDueSchedules() {
+        int executedSchedules = system.executeDueSchedules();
+        if (executedSchedules > 0) {
+            refreshDashboard();
         }
     }
 

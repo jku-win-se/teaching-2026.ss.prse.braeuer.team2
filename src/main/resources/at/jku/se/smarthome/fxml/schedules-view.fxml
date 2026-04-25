@@ -9,7 +9,7 @@
 <?import javafx.scene.layout.VBox?>
 
 <BorderPane xmlns:fx="http://javafx.com/fxml"
-            fx:controller="at.jku.se.smarthome.controller.ActivityController"
+            fx:controller="at.jku.se.smarthome.controller.ScheduleController"
             prefWidth="1100"
             prefHeight="700"
             style="-fx-background-color: #f7f5f2;">
@@ -32,12 +32,12 @@
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Schedules"
-                                onAction="#openSchedules"
-                                prefWidth="150"
-                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
-                        <Button text="Activity"
                                 prefWidth="150"
                                 style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
+                        <Button text="Activity"
+                                onAction="#openActivity"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Energy"
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
@@ -52,24 +52,27 @@
             <children>
                 <HBox>
                     <children>
-                        <Label text="Activity"
+                        <Label text="Schedules"
                                style="-fx-font-size: 28; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
                         <Region HBox.hgrow="ALWAYS" />
                         <Button text="Logout"
                                 onAction="#logout"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="+ Schedule"
+                                onAction="#createSchedule"
+                                style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                     </children>
                 </HBox>
 
                 <VBox spacing="14">
                     <children>
-                        <Label text="Activity Log"
+                        <Label text="Recurring Time Schedules"
                                style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
 
                         <ScrollPane fitToWidth="true"
                                     style="-fx-background-color: transparent; -fx-background: transparent;">
                             <content>
-                                <VBox fx:id="activityListContainer"
+                                <VBox fx:id="scheduleListContainer"
                                       spacing="10"
                                       style="-fx-padding: 2;" />
                             </content>
