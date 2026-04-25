@@ -21,7 +21,7 @@ import at.jku.se.smarthome.repository.SQLiteUserRepository;
 public class ScheduleTest {
 
     @Test
-    public void createSchedule_validSwitchSchedule_isStored() {
+    public void createScheduleValidSwitchScheduleIsStored() {
         SmartHomeSystem system = new SmartHomeSystem();
         system.registerUser("owner@example.com", "password123");
         system.loginUser("owner@example.com", "password123");
@@ -45,7 +45,7 @@ public class ScheduleTest {
     }
 
     @Test
-    public void createSchedule_switchWithInvalidTarget_rejectsInvalidAction() {
+    public void createScheduleSwitchWithInvalidTargetRejectsInvalidAction() {
         SmartHomeSystem system = new SmartHomeSystem();
         system.registerUser("owner@example.com", "password123");
         system.loginUser("owner@example.com", "password123");
@@ -66,7 +66,7 @@ public class ScheduleTest {
     }
 
     @Test
-    public void createSchedule_dimmerWithoutTargetValue_rejectsInvalidAction() {
+    public void createScheduleDimmerWithoutTargetValueRejectsInvalidAction() {
         SmartHomeSystem system = new SmartHomeSystem();
         system.registerUser("owner@example.com", "password123");
         system.loginUser("owner@example.com", "password123");
@@ -87,7 +87,7 @@ public class ScheduleTest {
     }
 
     @Test
-    public void executeDueSchedules_dueRecurringSchedule_updatesTargetDeviceOncePerDay() {
+    public void executeDueSchedulesDueRecurringScheduleUpdatesTargetDeviceOncePerDay() {
         MutableClock clock = new MutableClock(Instant.parse("2026-04-27T05:59:00Z"), ZoneOffset.UTC);
         SmartHomeSystem system = new SmartHomeSystem(
                 new InMemoryUserRepository(),
@@ -124,7 +124,7 @@ public class ScheduleTest {
     }
 
     @Test
-    public void executeDueSchedules_valueSchedule_appliesConfiguredValue() {
+    public void executeDueSchedulesValueScheduleAppliesConfiguredValue() {
         MutableClock clock = new MutableClock(Instant.parse("2026-04-28T18:30:00Z"), ZoneOffset.UTC);
         SmartHomeSystem system = new SmartHomeSystem(
                 new InMemoryUserRepository(),
@@ -152,7 +152,7 @@ public class ScheduleTest {
     }
 
     @Test
-    public void removeDevice_alsoRemovesAssociatedSchedules() {
+    public void removeDeviceAlsoRemovesAssociatedSchedules() {
         SmartHomeSystem system = new SmartHomeSystem();
         system.registerUser("owner@example.com", "password123");
         system.loginUser("owner@example.com", "password123");
@@ -174,7 +174,7 @@ public class ScheduleTest {
     }
 
     @Test
-    public void schedules_areLoadedAgainAfterRestart() throws IOException {
+    public void schedulesAreLoadedAgainAfterRestart() throws IOException {
         java.nio.file.Path databaseFile = java.nio.file.Files.createTempFile("smarthome-schedule", ".db");
         databaseFile.toFile().deleteOnExit();
         String databaseUrl = "jdbc:sqlite:" + databaseFile;

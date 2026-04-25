@@ -1,5 +1,10 @@
 package at.jku.se.smarthome.model;
 
+@SuppressWarnings({
+        "PMD.CommentRequired",
+        "PMD.ShortVariable",
+        "PMD.AvoidFieldNameMatchingMethodName"
+})
 public class Device {
     private final String id;
     private String name;

@@ -43,7 +43,7 @@ public class Schedule {
 
         this.id = id.trim();
         this.deviceId = deviceId.trim();
-        update(name, actionType, targetValue, executionTime, recurringDays);
+        applyUpdate(name, actionType, targetValue, executionTime, recurringDays);
     }
 
     public String getId() {
@@ -89,6 +89,11 @@ public class Schedule {
      */
     public void update(String newName, ScheduleActionType newActionType, Double newTargetValue,
                        LocalTime newExecutionTime, Set<DayOfWeek> newRecurringDays) {
+        applyUpdate(newName, newActionType, newTargetValue, newExecutionTime, newRecurringDays);
+    }
+
+    private void applyUpdate(String newName, ScheduleActionType newActionType, Double newTargetValue,
+                             LocalTime newExecutionTime, Set<DayOfWeek> newRecurringDays) {
         if (newName == null || newName.isBlank()) {
             throw new IllegalArgumentException("Schedule name must not be empty");
         }

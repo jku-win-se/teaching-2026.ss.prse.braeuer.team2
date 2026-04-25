@@ -12,7 +12,7 @@ import at.jku.se.smarthome.repository.SQLiteUserRepository;
 public class UserLoginTest {
 
     @Test
-    public void loginUser_registeredUser_logsInAndCreatesSession() throws IOException {
+    public void loginUserRegisteredUserLogsInAndCreatesSession() throws IOException {
         SmartHomeSystem system = createSystemWithTempDatabase();
         User registeredUser = system.registerUser("user@example.com", "secret123");
 
@@ -24,7 +24,7 @@ public class UserLoginTest {
     }
 
     @Test
-    public void loginUser_wrongPassword_throwsException() throws IOException {
+    public void loginUserWrongPasswordThrowsException() throws IOException {
         SmartHomeSystem system = createSystemWithTempDatabase();
         system.registerUser("user@example.com", "secret123");
 
@@ -34,7 +34,7 @@ public class UserLoginTest {
     }
 
     @Test
-    public void loginUser_unknownEmail_throwsException() throws IOException {
+    public void loginUserUnknownEmailThrowsException() throws IOException {
         SmartHomeSystem system = createSystemWithTempDatabase();
 
         Assert.assertThrows(IllegalArgumentException.class,
@@ -43,7 +43,7 @@ public class UserLoginTest {
     }
 
     @Test
-    public void logoutUser_clearsSession() throws IOException {
+    public void logoutUserClearsSession() throws IOException {
         SmartHomeSystem system = createSystemWithTempDatabase();
         system.registerUser("user@example.com", "secret123");
         system.loginUser("user@example.com", "secret123");
