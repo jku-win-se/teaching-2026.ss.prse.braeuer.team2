@@ -6,7 +6,8 @@ package at.jku.se.smarthome.model;
 @SuppressWarnings({
         "PMD.CommentRequired",
         "PMD.ShortVariable",
-        "PMD.DataClass"
+        "PMD.DataClass",
+        "PMD.ShortClassName"
 })
 public class Rule {
     private final String id;
@@ -28,7 +29,7 @@ public class Rule {
         }
 
         this.id = id.trim();
-        update(name, trigger, action);
+        applyUpdate(name, trigger, action);
     }
 
     public String getId() {
@@ -55,6 +56,10 @@ public class Rule {
      * @param newAction the new action definition
      */
     public void update(String newName, RuleTrigger newTrigger, RuleAction newAction) {
+        applyUpdate(newName, newTrigger, newAction);
+    }
+
+    private void applyUpdate(String newName, RuleTrigger newTrigger, RuleAction newAction) {
         if (newName == null || newName.isBlank()) {
             throw new IllegalArgumentException("Rule name must not be empty");
         }
