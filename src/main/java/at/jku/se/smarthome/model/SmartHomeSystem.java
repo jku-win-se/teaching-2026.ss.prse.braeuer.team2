@@ -896,8 +896,9 @@ public class SmartHomeSystem {
         Double expectedValue = rule.getTrigger().getExpectedValue();
         return switch (device.getType()) {
             case SWITCH -> (expectedValue != null && expectedValue == 1.0) == device.isOn();
-            case BLIND -> Double.compare(device.getValue(), expectedValue) == 0;
-            case DIMMER, THERMOSTAT, SENSOR -> Double.compare(device.getValue(), expectedValue) == 0;
+            case BLIND -> expectedValue != null && Double.compare(device.getValue(), expectedValue) == 0;
+            case DIMMER, THERMOSTAT, SENSOR ->
+                    expectedValue != null && Double.compare(device.getValue(), expectedValue) == 0;
         };
     }
 
