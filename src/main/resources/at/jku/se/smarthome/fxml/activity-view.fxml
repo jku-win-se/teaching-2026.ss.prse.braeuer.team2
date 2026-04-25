@@ -9,7 +9,7 @@
 <?import javafx.scene.layout.VBox?>
 
 <BorderPane xmlns:fx="http://javafx.com/fxml"
-            fx:controller="at.jku.se.smarthome.controller.DashboardController"
+            fx:controller="at.jku.se.smarthome.controller.ActivityController"
             prefWidth="1100"
             prefHeight="700"
             style="-fx-background-color: #f7f5f2;">
@@ -25,8 +25,9 @@
                 <VBox spacing="10">
                     <children>
                         <Button text="Dashboard"
+                                onAction="#openDashboard"
                                 prefWidth="150"
-                                style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Rules"
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
@@ -34,9 +35,8 @@
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Activity"
-                                onAction="#openActivity"
                                 prefWidth="150"
-                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                                style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
                         <Button text="Energy"
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
@@ -51,30 +51,24 @@
             <children>
                 <HBox>
                     <children>
-                        <Label text="Dashboard"
+                        <Label text="Activity"
                                style="-fx-font-size: 28; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
                         <Region HBox.hgrow="ALWAYS" />
                         <Button text="Logout"
                                 onAction="#logout"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
-                        <Button text="+ Room"
-                                onAction="#createRoom"
-                                style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
-                        <Button text="+ Device"
-                                onAction="#createDevice"
-                                style="-fx-background-color: #e3ded7; -fx-text-fill: #2b2b2b; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                     </children>
                 </HBox>
 
                 <VBox spacing="14">
                     <children>
-                        <Label text="Rooms"
+                        <Label text="Activity Log"
                                style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
 
                         <ScrollPane fitToWidth="true"
                                     style="-fx-background-color: transparent; -fx-background: transparent;">
                             <content>
-                                <VBox fx:id="roomListContainer"
+                                <VBox fx:id="activityListContainer"
                                       spacing="10"
                                       style="-fx-padding: 2;" />
                             </content>

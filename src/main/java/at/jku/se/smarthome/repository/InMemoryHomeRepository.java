@@ -2,6 +2,7 @@ package at.jku.se.smarthome.repository;
 
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.Room;
+import at.jku.se.smarthome.model.ActivityLogEntry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +14,11 @@ import java.util.List;
 public class InMemoryHomeRepository implements HomeRepository {
     @Override
     public List<Room> findRoomsByUserEmail(String userEmail) {
+        return new ArrayList<>();
+    }
+
+    @Override
+    public List<ActivityLogEntry> findActivityLogByUserEmail(String userEmail) {
         return new ArrayList<>();
     }
 
@@ -38,6 +44,10 @@ public class InMemoryHomeRepository implements HomeRepository {
 
     @Override
     public void updateDevice(Device device) {
+    }
+
+    @Override
+    public void saveActivityLogEntry(String userEmail, ActivityLogEntry entry) {
     }
 
     @Override

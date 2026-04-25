@@ -2,6 +2,7 @@ package at.jku.se.smarthome.repository;
 
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.Room;
+import at.jku.se.smarthome.model.ActivityLogEntry;
 
 import java.util.List;
 
@@ -17,6 +18,14 @@ public interface HomeRepository {
      * @return the stored rooms for the user
      */
     List<Room> findRoomsByUserEmail(String userEmail);
+
+    /**
+     * Loads all activity log entries for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @return the stored activity log entries for the user
+     */
+    List<ActivityLogEntry> findActivityLogByUserEmail(String userEmail);
 
     /**
      * Stores a room for the given user.
@@ -61,6 +70,14 @@ public interface HomeRepository {
      * @param device the device to update
      */
     void updateDevice(Device device);
+
+    /**
+     * Stores an activity log entry for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @param entry the log entry to store
+     */
+    void saveActivityLogEntry(String userEmail, ActivityLogEntry entry);
 
     /**
      * Deletes a stored device.

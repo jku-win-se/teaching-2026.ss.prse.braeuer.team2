@@ -1,11 +1,14 @@
 package at.jku.se.smarthome.model;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -29,13 +32,16 @@ public class SmartHomeSystem {
     private static SmartHomeSystem persistentSystem;
 
     private final List<Room> rooms;
+    private final List<ActivityLogEntry> activityLog;
     private final Map<String, List<Room>> userRooms;
+    private final Map<String, List<ActivityLogEntry>> userActivityLog;
     private final UserRepository userRepository;
     private final HomeRepository homeRepository;
     private final UserSession userSession;
+    private final Clock clock;
 
     public SmartHomeSystem() {
-        this(new InMemoryUserRepository(), new InMemoryHomeRepository());
+        this(new InMemoryUserRepository(), new InMemoryHomeRepository(), Clock.systemUTC());
     }
 
     /**
@@ -44,7 +50,7 @@ public class SmartHomeSystem {
      * @param userRepository the repository used to persist users
      */
     public SmartHomeSystem(UserRepository userRepository) {
-        this(userRepository, resolveHomeRepository(userRepository));
+        this(userRepository, resolveHomeRepository(userRepository), Clock.systemUTC());
     }
 
     /**
@@ -54,11 +60,25 @@ public class SmartHomeSystem {
      * @param homeRepository the repository used to persist rooms and devices
      */
     public SmartHomeSystem(UserRepository userRepository, HomeRepository homeRepository) {
+        this(userRepository, homeRepository, Clock.systemUTC());
+    }
+
+    /**
+     * Creates a system with the provided repositories and clock.
+     *
+     * @param userRepository the repository used to persist users
+     * @param homeRepository the repository used to persist rooms, devices and activity log entries
+     * @param clock the clock used to timestamp state changes
+     */
+    public SmartHomeSystem(UserRepository userRepository, HomeRepository homeRepository, Clock clock) {
         this.rooms = new ArrayList<>();
+        this.activityLog = new ArrayList<>();
         this.userRooms = new HashMap<>();
+        this.userActivityLog = new HashMap<>();
         this.userRepository = userRepository;
         this.homeRepository = homeRepository;
         this.userSession = new UserSession();
+        this.clock = clock;
     }
 
     /**
@@ -70,7 +90,8 @@ public class SmartHomeSystem {
         if (persistentSystem == null) {
             persistentSystem = new SmartHomeSystem(
                     new SQLiteUserRepository(DEFAULT_DATABASE_URL),
-                    new SQLiteHomeRepository(DEFAULT_DATABASE_URL)
+                    new SQLiteHomeRepository(DEFAULT_DATABASE_URL),
+                    Clock.systemUTC()
             );
         }
         return persistentSystem;
@@ -218,13 +239,29 @@ public class SmartHomeSystem {
      * @param deviceId the device id
      */
     public void toggleDevice(String deviceId) {
+        toggleDeviceInternal(deviceId, ActivityActorType.USER, resolveManualActorName());
+    }
+
+    /**
+     * Toggles a switch device because of an automation rule and persists the changed state.
+     *
+     * @param deviceId the device id
+     * @param ruleName the executing rule name
+     */
+    public void toggleDeviceByRule(String deviceId, String ruleName) {
+        toggleDeviceInternal(deviceId, ActivityActorType.RULE, validateRuleName(ruleName));
+    }
+
+    private void toggleDeviceInternal(String deviceId, ActivityActorType actorType, String actorName) {
         Device device = findDeviceById(deviceId);
         if (device == null) {
             throw new IllegalArgumentException("Device not found");
         }
 
+        String previousState = describeDeviceState(device);
         device.toggle();
         homeRepository.updateDevice(device);
+        logDeviceStateChange(device, actorType, actorName, previousState, describeDeviceState(device));
     }
 
     /**
@@ -234,13 +271,41 @@ public class SmartHomeSystem {
      * @param value the new device value
      */
     public void updateDeviceValue(String deviceId, double value) {
+        updateDeviceValueInternal(deviceId, value, ActivityActorType.USER, resolveManualActorName());
+    }
+
+    /**
+     * Updates a device value because of an automation rule and persists the changed state.
+     *
+     * @param deviceId the device id
+     * @param value the new device value
+     * @param ruleName the executing rule name
+     */
+    public void updateDeviceValueByRule(String deviceId, double value, String ruleName) {
+        updateDeviceValueInternal(deviceId, value, ActivityActorType.RULE, validateRuleName(ruleName));
+    }
+
+    private void updateDeviceValueInternal(String deviceId, double value,
+                                           ActivityActorType actorType, String actorName) {
         Device device = findDeviceById(deviceId);
         if (device == null) {
             throw new IllegalArgumentException("Device not found");
         }
 
+        String previousState = describeDeviceState(device);
         device.setValue(value);
         homeRepository.updateDevice(device);
+        logDeviceStateChange(device, actorType, actorName, previousState, describeDeviceState(device));
+    }
+
+    /**
+     * Returns the activity log of the current context.
+     * If a user is logged in, their log is returned; otherwise the anonymous in-memory log is returned.
+     *
+     * @return a defensive copy of the activity log
+     */
+    public List<ActivityLogEntry> getActivityLog() {
+        return List.copyOf(getActiveActivityLog());
     }
 
     public Device findDeviceById(String deviceId) {
@@ -366,10 +431,70 @@ public class SmartHomeSystem {
         return userRooms.computeIfAbsent(userEmail, homeRepository::findRoomsByUserEmail);
     }
 
+    private List<ActivityLogEntry> getActiveActivityLog() {
+        if (!userSession.isLoggedIn()) {
+            return activityLog;
+        }
+
+        String userEmail = userSession.getCurrentUser().getEmail();
+        return userActivityLog.computeIfAbsent(userEmail, homeRepository::findActivityLogByUserEmail);
+    }
+
     private void requireAuthenticatedUser() {
         if (!userSession.isLoggedIn()) {
             throw new IllegalStateException("User must be logged in");
         }
+    }
+
+    private void logDeviceStateChange(Device device, ActivityActorType actorType, String actorName,
+                                      String previousState, String newState) {
+        ActivityLogEntry entry = new ActivityLogEntry(
+                Instant.now(clock),
+                device.getId(),
+                device.getName(),
+                actorType,
+                actorName,
+                previousState,
+                newState
+        );
+        getActiveActivityLog().add(entry);
+        if (userSession.isLoggedIn()) {
+            homeRepository.saveActivityLogEntry(userSession.getCurrentUser().getEmail(), entry);
+        }
+    }
+
+    private String resolveManualActorName() {
+        if (userSession.isLoggedIn()) {
+            return userSession.getCurrentUser().getEmail();
+        }
+        return "anonymous";
+    }
+
+    private String validateRuleName(String ruleName) {
+        if (ruleName == null || ruleName.isBlank()) {
+            throw new IllegalArgumentException("Rule name must not be blank");
+        }
+        return ruleName.trim();
+    }
+
+    private String describeDeviceState(Device device) {
+        return switch (device.getType()) {
+            case SWITCH -> device.isOn() ? "On" : "Off";
+            case DIMMER -> formatNumericState(device.getValue(), "%");
+            case THERMOSTAT -> formatNumericState(device.getValue(), "°C");
+            case BLIND -> device.isOn() ? "Open" : "Closed";
+            case SENSOR -> formatNumericState(device.getValue(), device.getUnit());
+        };
+    }
+
+    private String formatNumericState(double value, String unit) {
+        String formattedValue = value == Math.rint(value)
+                ? String.format(Locale.ROOT, "%.0f", value)
+                : String.format(Locale.ROOT, "%.1f", value);
+        if (unit == null || unit.isBlank()) {
+            return formattedValue;
+        }
+        return formattedValue + " " + unit;
     }
 
     private void persistRoomIfAuthenticated(Room room) {
