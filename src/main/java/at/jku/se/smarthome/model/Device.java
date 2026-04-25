@@ -154,20 +154,27 @@ public class Device {
 
     //Gerätestatus anzeigen
     public String getStatusText() {
+        String statusText;
         switch (type) {
             case SWITCH:
-                return isOn ? "On" : "Off";
+                statusText = isOn ? "On" : "Off";
+                break;
             case DIMMER:
-                return value + " " + unit;
+                statusText = value + " " + unit;
+                break;
             case THERMOSTAT:
-                return value + " " + unit;
+                statusText = value + " " + unit;
+                break;
             case BLIND:
-                return isOn ? "Open" : "Closed";
+                statusText = isOn ? "Open" : "Closed";
+                break;
             case SENSOR:
-                return String.valueOf(value);
+                statusText = String.valueOf(value);
+                break;
             default:
                 throw new IllegalStateException("Unexpected device type: " + type);
         }
+        return statusText;
     }
 
 }

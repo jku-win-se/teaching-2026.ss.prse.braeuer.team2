@@ -11,6 +11,11 @@ import java.util.Set;
 /**
  * Represents a recurring time-based device schedule.
  */
+@SuppressWarnings({
+        "PMD.CommentRequired",
+        "PMD.ShortVariable",
+        "PMD.DataClass"
+})
 public class Schedule {
     private final String id;
     private String name;
