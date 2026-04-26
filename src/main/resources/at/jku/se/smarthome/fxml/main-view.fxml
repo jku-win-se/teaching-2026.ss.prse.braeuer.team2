@@ -68,6 +68,16 @@
                     </children>
                 </HBox>
 
+                <VBox spacing="10">
+                    <children>
+                        <Label text="Notifications"
+                               style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
+                        <VBox fx:id="notificationContainer"
+                              spacing="8"
+                              style="-fx-padding: 2;" />
+                    </children>
+                </VBox>
+
                 <VBox spacing="14">
                     <children>
                         <Label text="Rooms"
