@@ -27,24 +27,11 @@ public class RuleExecutionNotification {
      */
     public RuleExecutionNotification(Instant timestamp, String ruleId, String ruleName,
                                      boolean successful, String message) {
-        if (timestamp == null) {
-            throw new IllegalArgumentException("Notification timestamp must not be null");
-        }
-        if (ruleId == null || ruleId.isBlank()) {
-            throw new IllegalArgumentException("Rule id must not be empty");
-        }
-        if (ruleName == null || ruleName.isBlank()) {
-            throw new IllegalArgumentException("Rule name must not be empty");
-        }
-        if (message == null || message.isBlank()) {
-            throw new IllegalArgumentException("Notification message must not be empty");
-        }
-
-        this.timestamp = timestamp;
-        this.ruleId = ruleId.trim();
-        this.ruleName = ruleName.trim();
+        this.timestamp = requireTimestamp(timestamp);
+        this.ruleId = requireText(ruleId, "Rule id must not be empty");
+        this.ruleName = requireText(ruleName, "Rule name must not be empty");
         this.successful = successful;
-        this.message = message.trim();
+        this.message = requireText(message, "Notification message must not be empty");
     }
 
     public Instant getTimestamp() {
@@ -65,5 +52,19 @@ public class RuleExecutionNotification {
 
     public String getMessage() {
         return message;
+    }
+
+    private static Instant requireTimestamp(Instant timestamp) {
+        if (timestamp == null) {
+            throw new IllegalArgumentException("Notification timestamp must not be null");
+        }
+        return timestamp;
+    }
+
+    private static String requireText(String value, String errorMessage) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return value.trim();
     }
 }
