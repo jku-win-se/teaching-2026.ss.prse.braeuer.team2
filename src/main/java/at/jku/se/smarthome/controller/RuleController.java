@@ -48,11 +48,19 @@ public class RuleController {
     @FXML
     private VBox ruleListContainer;
 
+    @FXML
+    private Button createRuleButton;
+
     public void initialize() {
         if (!system.isUserLoggedIn()) {
             Platform.runLater(this::openAuthView);
             return;
         }
+        if (!system.isCurrentUserOwner()) {
+            Platform.runLater(this::openDashboard);
+            return;
+        }
+        configureRoleAccess();
         refreshRuleOverview();
     }
 
@@ -79,6 +87,11 @@ public class RuleController {
 
     @FXML
     public void createRule() {
+        if (!system.isCurrentUserOwner()) {
+            showMessage("Rules unavailable", "Members can control devices, but cannot manage rules.");
+            return;
+        }
+
         Optional<RuleFormData> formData = showRuleDialog(null);
         if (formData.isEmpty()) {
             return;
@@ -105,6 +118,11 @@ public class RuleController {
             emptyState.setStyle("-fx-text-fill: #6e6257;");
             ruleListContainer.getChildren().add(emptyState);
         }
+    }
+
+    private void configureRoleAccess() {
+        createRuleButton.setVisible(system.isCurrentUserOwner());
+        createRuleButton.setManaged(system.isCurrentUserOwner());
     }
 
     private VBox createRuleCard(Rule rule) {

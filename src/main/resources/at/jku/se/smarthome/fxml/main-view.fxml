@@ -28,6 +28,7 @@
                                 prefWidth="150"
                                 style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
                         <Button text="Rules"
+                                fx:id="rulesNavigationButton"
                                 onAction="#openRules"
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
@@ -60,9 +61,11 @@
                                 onAction="#logout"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="+ Room"
+                                fx:id="createRoomButton"
                                 onAction="#createRoom"
                                 style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                         <Button text="+ Device"
+                                fx:id="createDeviceButton"
                                 onAction="#createDevice"
                                 style="-fx-background-color: #e3ded7; -fx-text-fill: #2b2b2b; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                     </children>

@@ -60,6 +60,7 @@
                                 onAction="#logout"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="+ Rule"
+                                fx:id="createRuleButton"
                                 onAction="#createRule"
                                 style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                     </children>

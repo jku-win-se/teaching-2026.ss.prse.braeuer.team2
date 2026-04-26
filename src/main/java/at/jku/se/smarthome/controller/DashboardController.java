@@ -42,12 +42,22 @@ public class DashboardController {
     @FXML
     private VBox notificationContainer;
 
+    @FXML
+    private Button rulesNavigationButton;
+
+    @FXML
+    private Button createRoomButton;
+
+    @FXML
+    private Button createDeviceButton;
+
     public void initialize() {
         system = SmartHomeSystem.createPersistentSystem();
         if (!system.isUserLoggedIn()) {
             Platform.runLater(this::openAuthView);
             return;
         }
+        configureRoleAccess();
         startSchedulePolling();
         refreshDashboard();
     }
@@ -125,6 +135,11 @@ public class DashboardController {
 
     @FXML
     public void openRules() {
+        if (!system.isCurrentUserOwner()) {
+            showMessage("Rules unavailable", "Members can control devices, but cannot manage rules.");
+            return;
+        }
+
         try {
             stopSchedulePolling();
             FXMLLoader loader = new FXMLLoader(
@@ -141,6 +156,18 @@ public class DashboardController {
     private void refreshDashboard() {
         refreshNotifications();
         refreshRoomOverview();
+    }
+
+    private void configureRoleAccess() {
+        boolean owner = system.isCurrentUserOwner();
+        setVisibleAndManaged(rulesNavigationButton, owner);
+        setVisibleAndManaged(createRoomButton, owner);
+        setVisibleAndManaged(createDeviceButton, owner);
+    }
+
+    private void setVisibleAndManaged(Button button, boolean visible) {
+        button.setVisible(visible);
+        button.setManaged(visible);
     }
 
     private void refreshNotifications() {
@@ -215,7 +242,10 @@ public class DashboardController {
         deleteRoomButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #b04a2f;");
         deleteRoomButton.setOnAction(event -> deleteRoom(room));
 
-        HBox roomHeader = new HBox(8, roomName, spacer, addDeviceButton, renameRoomButton, deleteRoomButton);
+        HBox roomHeader = new HBox(8, roomName, spacer);
+        if (system.isCurrentUserOwner()) {
+            roomHeader.getChildren().addAll(addDeviceButton, renameRoomButton, deleteRoomButton);
+        }
 
         VBox devicesContainer = new VBox(8);
         if (room.getDevices().isEmpty()) {
@@ -248,7 +278,10 @@ public class DashboardController {
         deleteDeviceButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #b04a2f;");
         deleteDeviceButton.setOnAction(event -> deleteDevice(device));
 
-        HBox deviceHeader = new HBox(8, deviceName, spacer, renameDeviceButton, deleteDeviceButton);
+        HBox deviceHeader = new HBox(8, deviceName, spacer);
+        if (system.isCurrentUserOwner()) {
+            deviceHeader.getChildren().addAll(renameDeviceButton, deleteDeviceButton);
+        }
 
         VBox controls = buildDeviceControls(device);
 
@@ -435,7 +468,7 @@ public class DashboardController {
         try {
             system.createDevice(room.getId(), selectedDeviceName.get(), selectedDeviceType.get());
             refreshDashboard();
-        } catch (IllegalArgumentException exception) {
+        } catch (IllegalArgumentException | IllegalStateException exception) {
             showMessage("Invalid device", exception.getMessage());
         }
     }
