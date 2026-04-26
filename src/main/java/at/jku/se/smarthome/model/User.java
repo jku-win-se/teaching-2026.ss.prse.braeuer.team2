@@ -3,9 +3,22 @@ package at.jku.se.smarthome.model;
 /**
  * Represents a registered user account with a unique email address and hashed password.
  */
+@SuppressWarnings("PMD.ShortClassName")
 public class User {
+    /**
+     * Unique email address used for login.
+     */
     private final String email;
+
+    /**
+     * Secure one-way hash of the user's password.
+     */
     private final String passwordHash;
+
+    /**
+     * Permission role that determines the user's access rights.
+     */
+    private final UserRole role;
 
     /**
      * Creates a new user.
@@ -14,15 +27,30 @@ public class User {
      * @param passwordHash the hashed password of the user
      */
     public User(String email, String passwordHash) {
+        this(email, passwordHash, UserRole.OWNER);
+    }
+
+    /**
+     * Creates a new user with the provided role.
+     *
+     * @param email the unique email address of the user
+     * @param passwordHash the hashed password of the user
+     * @param role the permission role of the user
+     */
+    public User(String email, String passwordHash, UserRole role) {
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("Email must not be blank");
         }
         if (passwordHash == null || passwordHash.isBlank()) {
             throw new IllegalArgumentException("Password hash must not be blank");
         }
+        if (role == null) {
+            throw new IllegalArgumentException("User role must not be null");
+        }
 
         this.email = email;
         this.passwordHash = passwordHash;
+        this.role = role;
     }
 
     /**
@@ -41,5 +69,14 @@ public class User {
      */
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    /**
+     * Returns the permission role of the user.
+     *
+     * @return the user role
+     */
+    public UserRole getRole() {
+        return role;
     }
 }
