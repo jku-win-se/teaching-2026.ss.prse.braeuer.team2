@@ -16,9 +16,10 @@ public enum UserRole {
      * @return the parsed role, or {@link #OWNER} for missing values
      */
     public static UserRole fromStorageValue(String value) {
-        if (value == null || value.isBlank()) {
-            return OWNER;
+        UserRole role = OWNER;
+        if (value != null && !value.isBlank()) {
+            role = UserRole.valueOf(value.trim().toUpperCase(Locale.ROOT));
         }
-        return UserRole.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        return role;
     }
 }

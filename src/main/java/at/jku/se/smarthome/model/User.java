@@ -3,9 +3,21 @@ package at.jku.se.smarthome.model;
 /**
  * Represents a registered user account with a unique email address and hashed password.
  */
+@SuppressWarnings("PMD.ShortClassName")
 public class User {
+    /**
+     * Unique email address used for login.
+     */
     private final String email;
+
+    /**
+     * Secure one-way hash of the user's password.
+     */
     private final String passwordHash;
+
+    /**
+     * Permission role that determines the user's access rights.
+     */
     private final UserRole role;
 
     /**
