@@ -121,6 +121,7 @@ public class SmartHomeSystem {
         if (room == null) {
             throw new IllegalArgumentException("Room must not be null");
         }
+        requireOwnerIfAuthenticated();
         getActiveRooms().add(room);
         persistRoomIfAuthenticated(room);
     }
@@ -129,6 +130,7 @@ public class SmartHomeSystem {
      * Removes all currently stored rooms from the system.
      */
     public void clearRooms() {
+        requireOwnerIfAuthenticated();
         if (userSession.isLoggedIn()) {
             homeRepository.deleteRoomsByUserEmail(userSession.getCurrentUser().getEmail());
         }
@@ -145,7 +147,7 @@ public class SmartHomeSystem {
      * @return the created room
      */
     public Room createRoom(String roomName) {
-        requireAuthenticatedUser();
+        requireOwner();
         Room room = new Room(UUID.randomUUID().toString(), roomName);
         getActiveRooms().add(room);
         homeRepository.saveRoom(userSession.getCurrentUser().getEmail(), room);
@@ -159,7 +161,7 @@ public class SmartHomeSystem {
      * @param newName the new room name
      */
     public void renameRoom(String roomId, String newName) {
-        requireAuthenticatedUser();
+        requireOwner();
         Room room = findRoomById(roomId);
         if (room == null) {
             throw new IllegalArgumentException("Room not found");
@@ -175,7 +177,7 @@ public class SmartHomeSystem {
      * @return {@code true} if a room was removed, otherwise {@code false}
      */
     public boolean removeRoom(String roomId) {
-        requireAuthenticatedUser();
+        requireOwner();
         Room room = findRoomById(roomId);
         if (room == null) {
             return false;
@@ -227,7 +229,7 @@ public class SmartHomeSystem {
      * @return the created device
      */
     public Device createDevice(String roomId, String deviceName, DeviceType deviceType) {
-        requireAuthenticatedUser();
+        requireOwner();
         Room room = findRoomById(roomId);
         if (room == null) {
             throw new IllegalArgumentException("Room not found");
@@ -240,6 +242,7 @@ public class SmartHomeSystem {
     }
 
     public void renameDevice(String deviceId, String newName) {
+        requireOwnerIfAuthenticated();
         Device device = findDeviceById(deviceId);
         if (device == null) {
             throw new IllegalArgumentException("Device not found");
@@ -249,6 +252,7 @@ public class SmartHomeSystem {
     }
 
     public boolean removeDevice(String deviceId) {
+        requireOwnerIfAuthenticated();
         for (Room room : getActiveRooms()) {
             if (room.removeDevice(deviceId)) {
                 removeRulesForDevice(deviceId);
@@ -416,7 +420,7 @@ public class SmartHomeSystem {
      */
     public Rule createRule(String name, RuleTriggerType triggerType, String sourceDeviceId, Double expectedTriggerValue,
                            RuleActionType actionType, String targetDeviceId, Double targetActionValue) {
-        requireAuthenticatedUser();
+        requireOwner();
         RuleTrigger trigger = createValidatedRuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue, null, null);
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
         Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
@@ -440,7 +444,7 @@ public class SmartHomeSystem {
     public Rule createThresholdRule(String name, String sensorDeviceId, ThresholdOperator thresholdOperator,
                                     Double thresholdValue, RuleActionType actionType, String targetDeviceId,
                                     Double targetActionValue) {
-        requireAuthenticatedUser();
+        requireOwner();
         RuleTrigger trigger = createValidatedRuleTrigger(
                 RuleTriggerType.THRESHOLD,
                 sensorDeviceId,
@@ -467,7 +471,7 @@ public class SmartHomeSystem {
      */
     public Rule createTimeRule(String name, LocalTime triggerTime, RuleActionType actionType,
                                String targetDeviceId, Double targetActionValue) {
-        requireAuthenticatedUser();
+        requireOwner();
         RuleTrigger trigger = createValidatedRuleTrigger(RuleTriggerType.TIME, null, null, null, triggerTime);
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
         Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
@@ -491,7 +495,7 @@ public class SmartHomeSystem {
     public void updateRule(String ruleId, String name, RuleTriggerType triggerType, String sourceDeviceId,
                            Double expectedTriggerValue, RuleActionType actionType, String targetDeviceId,
                            Double targetActionValue) {
-        requireAuthenticatedUser();
+        requireOwner();
         Rule rule = findRuleById(ruleId);
         if (rule == null) {
             throw new IllegalArgumentException("Rule not found");
@@ -518,7 +522,7 @@ public class SmartHomeSystem {
     public void updateThresholdRule(String ruleId, String name, String sensorDeviceId,
                                     ThresholdOperator thresholdOperator, Double thresholdValue,
                                     RuleActionType actionType, String targetDeviceId, Double targetActionValue) {
-        requireAuthenticatedUser();
+        requireOwner();
         Rule rule = requireRule(ruleId);
         RuleTrigger trigger = createValidatedRuleTrigger(
                 RuleTriggerType.THRESHOLD,
@@ -544,7 +548,7 @@ public class SmartHomeSystem {
      */
     public void updateTimeRule(String ruleId, String name, LocalTime triggerTime, RuleActionType actionType,
                                String targetDeviceId, Double targetActionValue) {
-        requireAuthenticatedUser();
+        requireOwner();
         Rule rule = requireRule(ruleId);
         RuleTrigger trigger = createValidatedRuleTrigger(RuleTriggerType.TIME, null, null, null, triggerTime);
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
@@ -559,7 +563,7 @@ public class SmartHomeSystem {
      * @return {@code true} if the rule was removed
      */
     public boolean removeRule(String ruleId) {
-        requireAuthenticatedUser();
+        requireOwner();
         Rule rule = findRuleById(ruleId);
         if (rule == null) {
             return false;
@@ -767,14 +771,29 @@ public class SmartHomeSystem {
     }
 
     public User registerUser(String email, String password) {
+        return registerUser(email, password, UserRole.OWNER);
+    }
+
+    /**
+     * Registers a new user with an explicit permission role.
+     *
+     * @param email the unique email address
+     * @param password the plain text password
+     * @param role the permission role
+     * @return the registered user
+     */
+    public User registerUser(String email, String password, UserRole role) {
         String normalizedEmail = validateEmail(email);
         validatePassword(password);
+        if (role == null) {
+            throw new IllegalArgumentException("User role must not be null");
+        }
 
         if (userRepository.findByEmail(normalizedEmail) != null) {
             throw new IllegalArgumentException("An account with this email already exists");
         }
 
-        User user = new User(normalizedEmail, PasswordHasher.hash(password));
+        User user = new User(normalizedEmail, PasswordHasher.hash(password), role);
         return userRepository.save(user);
     }
 
@@ -824,6 +843,24 @@ public class SmartHomeSystem {
      */
     public User getLoggedInUser() {
         return userSession.getCurrentUser();
+    }
+
+    /**
+     * Returns whether the logged-in user has full owner permissions.
+     *
+     * @return {@code true} if the current user is an owner
+     */
+    public boolean isCurrentUserOwner() {
+        return userSession.isLoggedIn() && userSession.getCurrentUser().getRole() == UserRole.OWNER;
+    }
+
+    /**
+     * Returns whether the logged-in user has member permissions.
+     *
+     * @return {@code true} if the current user is a member
+     */
+    public boolean isCurrentUserMember() {
+        return userSession.isLoggedIn() && userSession.getCurrentUser().getRole() == UserRole.MEMBER;
     }
 
     /**
@@ -918,6 +955,19 @@ public class SmartHomeSystem {
     private void requireAuthenticatedUser() {
         if (!userSession.isLoggedIn()) {
             throw new IllegalStateException("User must be logged in");
+        }
+    }
+
+    private void requireOwner() {
+        requireAuthenticatedUser();
+        if (!isCurrentUserOwner()) {
+            throw new IllegalStateException("Only owners may manage rooms, devices and rules");
+        }
+    }
+
+    private void requireOwnerIfAuthenticated() {
+        if (userSession.isLoggedIn() && !isCurrentUserOwner()) {
+            throw new IllegalStateException("Only owners may manage rooms, devices and rules");
         }
     }
 
