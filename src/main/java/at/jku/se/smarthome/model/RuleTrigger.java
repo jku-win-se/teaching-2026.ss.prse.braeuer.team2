@@ -9,7 +9,9 @@ import java.time.LocalTime;
 @SuppressWarnings({
         "PMD.CommentRequired",
         "PMD.ShortVariable",
-        "PMD.DataClass"
+        "PMD.DataClass",
+        "PMD.ExcessiveParameterList",
+        "PMD.UseObjectForClearerAPI"
 })
 public class RuleTrigger {
     private final RuleTriggerType triggerType;
@@ -89,11 +91,9 @@ public class RuleTrigger {
      * @return {@code true} if the trigger is due
      */
     public boolean isDue(LocalDate date, LocalTime time) {
-        if (triggerType != RuleTriggerType.TIME || triggerTime == null) {
-            return false;
-        }
+        boolean timeTrigger = triggerType == RuleTriggerType.TIME && triggerTime != null;
         boolean alreadyTriggeredToday = lastTriggeredOn != null && lastTriggeredOn.equals(date);
-        return !alreadyTriggeredToday && !time.withSecond(0).withNano(0).isBefore(triggerTime);
+        return timeTrigger && !alreadyTriggeredToday && !time.withSecond(0).withNano(0).isBefore(triggerTime);
     }
 
     /**

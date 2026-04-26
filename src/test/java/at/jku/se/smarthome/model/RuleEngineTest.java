@@ -11,6 +11,8 @@ import java.time.ZoneId;
 import org.junit.Assert;
 import org.junit.Test;
 
+import at.jku.se.smarthome.repository.InMemoryHomeRepository;
+import at.jku.se.smarthome.repository.InMemoryUserRepository;
 import at.jku.se.smarthome.repository.SQLiteHomeRepository;
 import at.jku.se.smarthome.repository.SQLiteUserRepository;
 
@@ -80,8 +82,8 @@ public class RuleEngineTest {
     @Test
     public void timeTriggerExecutesConfiguredActionWhenDue() {
         SmartHomeSystem system = new SmartHomeSystem(
-                new at.jku.se.smarthome.repository.InMemoryUserRepository(),
-                new at.jku.se.smarthome.repository.InMemoryHomeRepository(),
+                new InMemoryUserRepository(),
+                new InMemoryHomeRepository(),
                 Clock.fixed(Instant.parse("2026-04-26T07:00:00Z"), ZoneId.of("UTC"))
         );
         system.registerUser("owner@example.com", "password123");
