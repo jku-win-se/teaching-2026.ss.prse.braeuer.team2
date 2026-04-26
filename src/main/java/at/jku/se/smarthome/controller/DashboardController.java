@@ -2,6 +2,7 @@ package at.jku.se.smarthome.controller;
 
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.DeviceType;
+import at.jku.se.smarthome.model.RuleExecutionNotification;
 import at.jku.se.smarthome.model.Room;
 import at.jku.se.smarthome.model.SmartHomeSystem;
 import javafx.animation.KeyFrame;
@@ -37,6 +38,9 @@ public class DashboardController {
 
     @FXML
     private VBox roomListContainer;
+
+    @FXML
+    private VBox notificationContainer;
 
     public void initialize() {
         system = SmartHomeSystem.createPersistentSystem();
@@ -135,7 +139,47 @@ public class DashboardController {
     }
 
     private void refreshDashboard() {
+        refreshNotifications();
         refreshRoomOverview();
+    }
+
+    private void refreshNotifications() {
+        notificationContainer.getChildren().clear();
+
+        List<RuleExecutionNotification> notifications = system.getRuleNotifications();
+        if (notifications.isEmpty()) {
+            Label emptyState = new Label("No rule notifications yet.");
+            emptyState.setStyle("-fx-text-fill: #8a6f5a;");
+            notificationContainer.getChildren().add(emptyState);
+            return;
+        }
+
+        int startIndex = Math.max(0, notifications.size() - 5);
+        for (int index = notifications.size() - 1; index >= startIndex; index--) {
+            notificationContainer.getChildren().add(createNotificationCard(notifications.get(index)));
+        }
+    }
+
+    private HBox createNotificationCard(RuleExecutionNotification notification) {
+        Label notificationLabel = new Label(notification.getMessage());
+        notificationLabel.setWrapText(true);
+        HBox.setHgrow(notificationLabel, Priority.ALWAYS);
+
+        Button dismissButton = new Button("X");
+        dismissButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #6e6257;");
+        dismissButton.setOnAction(event -> {
+            system.dismissRuleNotification(notification);
+            refreshNotifications();
+        });
+
+        String backgroundColor = notification.isSuccessful() ? "#e9f5ec" : "#f8e7e2";
+        String textColor = notification.isSuccessful() ? "#276738" : "#9b3323";
+        notificationLabel.setStyle("-fx-text-fill: " + textColor + ";");
+
+        HBox notificationCard = new HBox(8, notificationLabel, dismissButton);
+        notificationCard.setStyle("-fx-background-color: " + backgroundColor
+                + "; -fx-background-radius: 8; -fx-padding: 10 12 10 12;");
+        return notificationCard;
     }
 
     private void refreshRoomOverview() {
@@ -413,9 +457,12 @@ public class DashboardController {
 
     private void executeDueSchedules() {
         int executedSchedules = system.executeDueSchedules();
-        if (executedSchedules > 0) {
+        int executedRules = system.executeDueRules();
+        if (executedSchedules > 0 || executedRules > 0) {
             refreshDashboard();
+            return;
         }
+        refreshNotifications();
     }
 
     private Optional<String> promptDeviceName() {

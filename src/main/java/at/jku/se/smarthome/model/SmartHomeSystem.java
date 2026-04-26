@@ -39,10 +39,12 @@ public class SmartHomeSystem {
 
     private final List<Room> rooms;
     private final List<ActivityLogEntry> activityLog;
+    private final List<RuleExecutionNotification> ruleNotifications;
     private final List<Rule> rules;
     private final List<Schedule> schedules;
     private final Map<String, List<Room>> userRooms;
     private final Map<String, List<ActivityLogEntry>> userActivityLog;
+    private final Map<String, List<RuleExecutionNotification>> userRuleNotifications;
     private final Map<String, List<Rule>> userRules;
     private final Map<String, List<Schedule>> userSchedules;
     private final Set<String> executingRuleIds;
@@ -84,10 +86,12 @@ public class SmartHomeSystem {
     public SmartHomeSystem(UserRepository userRepository, HomeRepository homeRepository, Clock clock) {
         this.rooms = new ArrayList<>();
         this.activityLog = new ArrayList<>();
+        this.ruleNotifications = new ArrayList<>();
         this.rules = new ArrayList<>();
         this.schedules = new ArrayList<>();
         this.userRooms = new HashMap<>();
         this.userActivityLog = new HashMap<>();
+        this.userRuleNotifications = new HashMap<>();
         this.userRules = new HashMap<>();
         this.userSchedules = new HashMap<>();
         this.executingRuleIds = new HashSet<>();
@@ -131,6 +135,7 @@ public class SmartHomeSystem {
         getActiveRooms().clear();
         getActiveRules().clear();
         getActiveSchedules().clear();
+        getActiveRuleNotifications().clear();
     }
 
     /**
@@ -366,6 +371,35 @@ public class SmartHomeSystem {
      */
     public List<ActivityLogEntry> getActivityLog() {
         return List.copyOf(getActiveActivityLog());
+    }
+
+    /**
+     * Returns the in-app notifications for rule execution results.
+     *
+     * @return a defensive copy of the rule execution notifications
+     */
+    public List<RuleExecutionNotification> getRuleNotifications() {
+        return List.copyOf(getActiveRuleNotifications());
+    }
+
+    /**
+     * Removes all currently visible rule execution notifications.
+     */
+    public void clearRuleNotifications() {
+        getActiveRuleNotifications().clear();
+    }
+
+    /**
+     * Removes a single visible rule execution notification.
+     *
+     * @param notification the notification to remove
+     * @return {@code true} if the notification was removed
+     */
+    public boolean dismissRuleNotification(RuleExecutionNotification notification) {
+        if (notification == null) {
+            return false;
+        }
+        return getActiveRuleNotifications().remove(notification);
     }
 
     /**
@@ -710,7 +744,9 @@ public class SmartHomeSystem {
                 continue;
             }
 
-            executeRule(rule);
+            if (!executeRule(rule)) {
+                continue;
+            }
             trigger.markTriggered(now.toLocalDate());
             if (userSession.isLoggedIn()) {
                 homeRepository.updateRule(rule);
@@ -850,6 +886,15 @@ public class SmartHomeSystem {
 
         String userEmail = userSession.getCurrentUser().getEmail();
         return userActivityLog.computeIfAbsent(userEmail, homeRepository::findActivityLogByUserEmail);
+    }
+
+    private List<RuleExecutionNotification> getActiveRuleNotifications() {
+        if (!userSession.isLoggedIn()) {
+            return ruleNotifications;
+        }
+
+        String userEmail = userSession.getCurrentUser().getEmail();
+        return userRuleNotifications.computeIfAbsent(userEmail, ignored -> new ArrayList<>());
     }
 
     private List<Schedule> getActiveSchedules() {
@@ -1086,9 +1131,9 @@ public class SmartHomeSystem {
         };
     }
 
-    private void executeRule(Rule rule) {
+    private boolean executeRule(Rule rule) {
         if (executingRuleIds.contains(rule.getId())) {
-            return;
+            return false;
         }
 
         executingRuleIds.add(rule.getId());
@@ -1104,9 +1149,24 @@ public class SmartHomeSystem {
             } else {
                 updateDeviceValueByRule(targetDevice.getId(), action.getTargetValue(), rule.getName());
             }
+            addRuleNotification(rule, true, "Rule \"" + rule.getName() + "\" executed successfully.");
+            return true;
+        } catch (RuntimeException exception) {
+            addRuleNotification(rule, false, "Rule \"" + rule.getName() + "\" failed: " + exception.getMessage());
+            return false;
         } finally {
             executingRuleIds.remove(rule.getId());
         }
+    }
+
+    private void addRuleNotification(Rule rule, boolean successful, String message) {
+        getActiveRuleNotifications().add(new RuleExecutionNotification(
+                Instant.now(clock),
+                rule.getId(),
+                rule.getName(),
+                successful,
+                message
+        ));
     }
 
     private void removeRulesForDevice(String deviceId) {
