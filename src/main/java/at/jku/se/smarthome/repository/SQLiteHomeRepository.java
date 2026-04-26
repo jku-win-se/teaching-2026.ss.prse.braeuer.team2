@@ -12,6 +12,7 @@ import at.jku.se.smarthome.model.RuleTrigger;
 import at.jku.se.smarthome.model.RuleTriggerType;
 import at.jku.se.smarthome.model.Schedule;
 import at.jku.se.smarthome.model.ScheduleActionType;
+import at.jku.se.smarthome.model.ThresholdOperator;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -159,6 +160,7 @@ public class SQLiteHomeRepository implements HomeRepository {
     public List<Rule> findRulesByUserEmail(String userEmail) {
         String sql = """
                 SELECT id, name, trigger_type, trigger_device_id, trigger_expected_value,
+                       threshold_operator, trigger_time, last_triggered_on,
                        action_type, action_device_id, action_target_value
                 FROM rules
                 WHERE user_email = ?
@@ -319,9 +321,10 @@ public class SQLiteHomeRepository implements HomeRepository {
         String sql = """
                 INSERT INTO rules(
                     id, user_email, name, trigger_type, trigger_device_id, trigger_expected_value,
-                    action_type, action_device_id, action_target_value
+                    threshold_operator, trigger_time, last_triggered_on, action_type, action_device_id,
+                    action_target_value
                 )
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection connection = openConnection();
@@ -338,6 +341,7 @@ public class SQLiteHomeRepository implements HomeRepository {
         String sql = """
                 UPDATE rules
                 SET name = ?, trigger_type = ?, trigger_device_id = ?, trigger_expected_value = ?,
+                    threshold_operator = ?, trigger_time = ?, last_triggered_on = ?,
                     action_type = ?, action_device_id = ?, action_target_value = ?
                 WHERE id = ?
                 """;
@@ -346,12 +350,15 @@ public class SQLiteHomeRepository implements HomeRepository {
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, rule.getName());
             statement.setString(2, rule.getTrigger().getTriggerType().name());
-            statement.setString(3, rule.getTrigger().getSourceDeviceId());
+            setNullableString(statement, 3, storageTriggerDeviceId(rule));
             setNullableDouble(statement, 4, rule.getTrigger().getExpectedValue());
-            statement.setString(5, rule.getAction().getActionType().name());
-            statement.setString(6, rule.getAction().getTargetDeviceId());
-            setNullableDouble(statement, 7, rule.getAction().getTargetValue());
-            statement.setString(8, rule.getId());
+            setNullableString(statement, 5, serializeThresholdOperator(rule.getTrigger().getThresholdOperator()));
+            setNullableString(statement, 6, serializeLocalTime(rule.getTrigger().getTriggerTime()));
+            setNullableString(statement, 7, serializeLocalDate(rule.getTrigger().getLastTriggeredOn()));
+            statement.setString(8, rule.getAction().getActionType().name());
+            statement.setString(9, rule.getAction().getTargetDeviceId());
+            setNullableDouble(statement, 10, rule.getAction().getTargetValue());
+            statement.setString(11, rule.getId());
             statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to update rule", exception);
@@ -466,7 +473,10 @@ public class SQLiteHomeRepository implements HomeRepository {
         RuleTrigger trigger = new RuleTrigger(
                 RuleTriggerType.valueOf(resultSet.getString("trigger_type")),
                 resultSet.getString("trigger_device_id"),
-                readNullableDouble(resultSet, "trigger_expected_value")
+                readNullableDouble(resultSet, "trigger_expected_value"),
+                parseThresholdOperator(resultSet.getString("threshold_operator")),
+                parseLocalTime(resultSet.getString("trigger_time")),
+                parseLocalDate(resultSet.getString("last_triggered_on"))
         );
         RuleAction action = new RuleAction(
                 RuleActionType.valueOf(resultSet.getString("action_type")),
@@ -498,11 +508,54 @@ public class SQLiteHomeRepository implements HomeRepository {
         statement.setString(2, userEmail);
         statement.setString(3, rule.getName());
         statement.setString(4, rule.getTrigger().getTriggerType().name());
-        statement.setString(5, rule.getTrigger().getSourceDeviceId());
+        setNullableString(statement, 5, storageTriggerDeviceId(rule));
         setNullableDouble(statement, 6, rule.getTrigger().getExpectedValue());
-        statement.setString(7, rule.getAction().getActionType().name());
-        statement.setString(8, rule.getAction().getTargetDeviceId());
-        setNullableDouble(statement, 9, rule.getAction().getTargetValue());
+        setNullableString(statement, 7, serializeThresholdOperator(rule.getTrigger().getThresholdOperator()));
+        setNullableString(statement, 8, serializeLocalTime(rule.getTrigger().getTriggerTime()));
+        setNullableString(statement, 9, serializeLocalDate(rule.getTrigger().getLastTriggeredOn()));
+        statement.setString(10, rule.getAction().getActionType().name());
+        statement.setString(11, rule.getAction().getTargetDeviceId());
+        setNullableDouble(statement, 12, rule.getAction().getTargetValue());
+    }
+
+    private String storageTriggerDeviceId(Rule rule) {
+        if (rule.getTrigger().getSourceDeviceId() != null) {
+            return rule.getTrigger().getSourceDeviceId();
+        }
+        return rule.getAction().getTargetDeviceId();
+    }
+
+    private String serializeThresholdOperator(ThresholdOperator thresholdOperator) {
+        return thresholdOperator == null ? null : thresholdOperator.name();
+    }
+
+    private String serializeLocalTime(LocalTime localTime) {
+        return localTime == null ? null : localTime.toString();
+    }
+
+    private String serializeLocalDate(LocalDate localDate) {
+        return localDate == null ? null : localDate.toString();
+    }
+
+    private ThresholdOperator parseThresholdOperator(String thresholdOperator) {
+        if (thresholdOperator == null || thresholdOperator.isBlank()) {
+            return null;
+        }
+        return ThresholdOperator.valueOf(thresholdOperator);
+    }
+
+    private LocalTime parseLocalTime(String localTime) {
+        if (localTime == null || localTime.isBlank()) {
+            return null;
+        }
+        return LocalTime.parse(localTime);
+    }
+
+    private LocalDate parseLocalDate(String localDate) {
+        if (localDate == null || localDate.isBlank()) {
+            return null;
+        }
+        return LocalDate.parse(localDate);
     }
 
     private void setNullableDouble(PreparedStatement statement, int index, Double value) throws SQLException {
@@ -610,6 +663,9 @@ public class SQLiteHomeRepository implements HomeRepository {
                     trigger_type TEXT NOT NULL,
                     trigger_device_id TEXT NOT NULL,
                     trigger_expected_value REAL,
+                    threshold_operator TEXT,
+                    trigger_time TEXT,
+                    last_triggered_on TEXT,
                     action_type TEXT NOT NULL,
                     action_device_id TEXT NOT NULL,
                     action_target_value REAL,
@@ -627,6 +683,7 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.execute(createSchedulesSql);
             statement.execute(createRulesSql);
             ensureActivityLogColumns(connection);
+            ensureRuleColumns(connection);
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to initialize home schema", exception);
         }
@@ -655,6 +712,29 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.executeUpdate(
                     "UPDATE activity_log SET new_state = 'Unknown' WHERE TRIM(COALESCE(new_state, '')) = ''"
             );
+        }
+    }
+
+    private void ensureRuleColumns(Connection connection) throws SQLException {
+        List<String> ruleColumns = new ArrayList<>();
+
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("PRAGMA table_info(rules)")) {
+            while (resultSet.next()) {
+                ruleColumns.add(resultSet.getString("name"));
+            }
+        }
+
+        try (Statement statement = connection.createStatement()) {
+            if (!ruleColumns.contains("threshold_operator")) {
+                statement.execute("ALTER TABLE rules ADD COLUMN threshold_operator TEXT");
+            }
+            if (!ruleColumns.contains("trigger_time")) {
+                statement.execute("ALTER TABLE rules ADD COLUMN trigger_time TEXT");
+            }
+            if (!ruleColumns.contains("last_triggered_on")) {
+                statement.execute("ALTER TABLE rules ADD COLUMN last_triggered_on TEXT");
+            }
         }
     }
 }

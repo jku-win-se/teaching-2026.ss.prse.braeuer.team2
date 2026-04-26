@@ -3,6 +3,10 @@ package at.jku.se.smarthome.model;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -71,6 +75,77 @@ public class RuleEngineTest {
                 ActivityActorType.RULE, system.getActivityLog().get(1).getActorType());
         Assert.assertEquals("The executing rule name should be recorded in the activity log",
                 "Motion turns light on", system.getActivityLog().get(1).getActorName());
+    }
+
+    @Test
+    public void timeTriggerExecutesConfiguredActionWhenDue() {
+        SmartHomeSystem system = new SmartHomeSystem(
+                new at.jku.se.smarthome.repository.InMemoryUserRepository(),
+                new at.jku.se.smarthome.repository.InMemoryHomeRepository(),
+                Clock.fixed(Instant.parse("2026-04-26T07:00:00Z"), ZoneId.of("UTC"))
+        );
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Hallway");
+        Device light = system.createDevice(room.getId(), "Hallway Light", DeviceType.SWITCH);
+        system.createTimeRule(
+                "Morning light",
+                LocalTime.of(7, 0),
+                RuleActionType.SET_DEVICE_STATE,
+                light.getId(),
+                1.0
+        );
+
+        int executedRules = system.executeDueRules();
+
+        Assert.assertEquals("Exactly one time-based rule should execute", 1, executedRules);
+        Assert.assertTrue("The configured target action should turn the light on", light.isOn());
+    }
+
+    @Test
+    public void thresholdTriggerExecutesConfiguredActionForSensorValue() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+        Device temperatureSensor = system.createDevice(room.getId(), "Temperature", DeviceType.SENSOR);
+        Device heater = system.createDevice(room.getId(), "Heater", DeviceType.SWITCH);
+        system.createThresholdRule(
+                "Heat below threshold",
+                temperatureSensor.getId(),
+                ThresholdOperator.BELOW,
+                18.0,
+                RuleActionType.SET_DEVICE_STATE,
+                heater.getId(),
+                1.0
+        );
+
+        system.updateDeviceValue(temperatureSensor.getId(), 17.5);
+
+        Assert.assertTrue("The heater should turn on when the sensor value is below the threshold", heater.isOn());
+    }
+
+    @Test
+    public void nonMatchingThresholdDoesNotExecuteRuleAction() {
+        SmartHomeSystem system = new SmartHomeSystem();
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+        Device temperatureSensor = system.createDevice(room.getId(), "Temperature", DeviceType.SENSOR);
+        Device heater = system.createDevice(room.getId(), "Heater", DeviceType.SWITCH);
+        system.createThresholdRule(
+                "Heat below threshold",
+                temperatureSensor.getId(),
+                ThresholdOperator.BELOW,
+                18.0,
+                RuleActionType.SET_DEVICE_STATE,
+                heater.getId(),
+                1.0
+        );
+
+        system.updateDeviceValue(temperatureSensor.getId(), 19.0);
+
+        Assert.assertFalse("The heater should stay off while the threshold condition is false", heater.isOn());
     }
 
     @Test

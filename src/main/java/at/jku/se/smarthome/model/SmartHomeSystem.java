@@ -383,7 +383,58 @@ public class SmartHomeSystem {
     public Rule createRule(String name, RuleTriggerType triggerType, String sourceDeviceId, Double expectedTriggerValue,
                            RuleActionType actionType, String targetDeviceId, Double targetActionValue) {
         requireAuthenticatedUser();
-        RuleTrigger trigger = createValidatedRuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue);
+        RuleTrigger trigger = createValidatedRuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue, null, null);
+        RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
+        Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
+        getActiveRules().add(rule);
+        homeRepository.saveRule(userSession.getCurrentUser().getEmail(), rule);
+        return rule;
+    }
+
+    /**
+     * Creates and stores a sensor threshold automation rule for the authenticated user.
+     *
+     * @param name the rule name
+     * @param sensorDeviceId the source sensor id
+     * @param thresholdOperator the threshold comparison operator
+     * @param thresholdValue the threshold value
+     * @param actionType the action type
+     * @param targetDeviceId the target device id
+     * @param targetActionValue the target device state
+     * @return the created rule
+     */
+    public Rule createThresholdRule(String name, String sensorDeviceId, ThresholdOperator thresholdOperator,
+                                    Double thresholdValue, RuleActionType actionType, String targetDeviceId,
+                                    Double targetActionValue) {
+        requireAuthenticatedUser();
+        RuleTrigger trigger = createValidatedRuleTrigger(
+                RuleTriggerType.THRESHOLD,
+                sensorDeviceId,
+                thresholdValue,
+                thresholdOperator,
+                null
+        );
+        RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
+        Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
+        getActiveRules().add(rule);
+        homeRepository.saveRule(userSession.getCurrentUser().getEmail(), rule);
+        return rule;
+    }
+
+    /**
+     * Creates and stores a time-based automation rule for the authenticated user.
+     *
+     * @param name the rule name
+     * @param triggerTime the time when the rule becomes due
+     * @param actionType the action type
+     * @param targetDeviceId the target device id
+     * @param targetActionValue the target device state
+     * @return the created rule
+     */
+    public Rule createTimeRule(String name, LocalTime triggerTime, RuleActionType actionType,
+                               String targetDeviceId, Double targetActionValue) {
+        requireAuthenticatedUser();
+        RuleTrigger trigger = createValidatedRuleTrigger(RuleTriggerType.TIME, null, null, null, triggerTime);
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
         Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
         getActiveRules().add(rule);
@@ -412,7 +463,56 @@ public class SmartHomeSystem {
             throw new IllegalArgumentException("Rule not found");
         }
 
-        RuleTrigger trigger = createValidatedRuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue);
+        RuleTrigger trigger = createValidatedRuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue, null, null);
+        RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
+        rule.update(name, trigger, action);
+        homeRepository.updateRule(rule);
+    }
+
+    /**
+     * Updates an existing sensor threshold automation rule.
+     *
+     * @param ruleId the rule id
+     * @param name the rule name
+     * @param sensorDeviceId the source sensor id
+     * @param thresholdOperator the threshold comparison operator
+     * @param thresholdValue the threshold value
+     * @param actionType the action type
+     * @param targetDeviceId the target device id
+     * @param targetActionValue the target device state
+     */
+    public void updateThresholdRule(String ruleId, String name, String sensorDeviceId,
+                                    ThresholdOperator thresholdOperator, Double thresholdValue,
+                                    RuleActionType actionType, String targetDeviceId, Double targetActionValue) {
+        requireAuthenticatedUser();
+        Rule rule = requireRule(ruleId);
+        RuleTrigger trigger = createValidatedRuleTrigger(
+                RuleTriggerType.THRESHOLD,
+                sensorDeviceId,
+                thresholdValue,
+                thresholdOperator,
+                null
+        );
+        RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
+        rule.update(name, trigger, action);
+        homeRepository.updateRule(rule);
+    }
+
+    /**
+     * Updates an existing time-based automation rule.
+     *
+     * @param ruleId the rule id
+     * @param name the rule name
+     * @param triggerTime the trigger time
+     * @param actionType the action type
+     * @param targetDeviceId the target device id
+     * @param targetActionValue the target device state
+     */
+    public void updateTimeRule(String ruleId, String name, LocalTime triggerTime, RuleActionType actionType,
+                               String targetDeviceId, Double targetActionValue) {
+        requireAuthenticatedUser();
+        Rule rule = requireRule(ruleId);
+        RuleTrigger trigger = createValidatedRuleTrigger(RuleTriggerType.TIME, null, null, null, triggerTime);
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
         rule.update(name, trigger, action);
         homeRepository.updateRule(rule);
@@ -464,6 +564,14 @@ public class SmartHomeSystem {
             }
         }
         return null;
+    }
+
+    private Rule requireRule(String ruleId) {
+        Rule rule = findRuleById(ruleId);
+        if (rule == null) {
+            throw new IllegalArgumentException("Rule not found");
+        }
+        return rule;
     }
 
     /**
@@ -582,6 +690,31 @@ public class SmartHomeSystem {
             }
 
             executeSchedule(schedule, now.toLocalDate());
+            executedCount++;
+        }
+        return executedCount;
+    }
+
+    /**
+     * Executes all time-based rules that are due at the current clock time.
+     *
+     * @return the number of executed rules
+     */
+    public int executeDueRules() {
+        LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), clock.getZone());
+        int executedCount = 0;
+
+        for (Rule rule : getActiveRules()) {
+            RuleTrigger trigger = rule.getTrigger();
+            if (trigger.getTriggerType() != RuleTriggerType.TIME || !trigger.isDue(now.toLocalDate(), now.toLocalTime())) {
+                continue;
+            }
+
+            executeRule(rule);
+            trigger.markTriggered(now.toLocalDate());
+            if (userSession.isLoggedIn()) {
+                homeRepository.updateRule(rule);
+            }
             executedCount++;
         }
         return executedCount;
@@ -775,12 +908,46 @@ public class SmartHomeSystem {
     }
 
     private RuleTrigger createValidatedRuleTrigger(RuleTriggerType triggerType, String sourceDeviceId,
-                                                   Double expectedTriggerValue) {
-        if (triggerType != RuleTriggerType.DEVICE_STATE_CHANGE) {
-            throw new IllegalArgumentException("Only device state change triggers are supported for now");
+                                                   Double expectedTriggerValue,
+                                                   ThresholdOperator thresholdOperator, LocalTime triggerTime) {
+        if (triggerType == null) {
+            throw new IllegalArgumentException("Rule trigger type must not be null");
         }
-        validateAutomationValue(sourceDeviceId, expectedTriggerValue, "trigger");
-        return new RuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue);
+
+        return switch (triggerType) {
+            case DEVICE_STATE_CHANGE -> {
+                validateAutomationValue(sourceDeviceId, expectedTriggerValue, "trigger");
+                yield new RuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue);
+            }
+            case THRESHOLD -> createValidatedThresholdTrigger(sourceDeviceId, thresholdOperator, expectedTriggerValue);
+            case TIME -> createValidatedTimeTrigger(triggerTime);
+        };
+    }
+
+    private RuleTrigger createValidatedThresholdTrigger(String sourceDeviceId,
+                                                        ThresholdOperator thresholdOperator,
+                                                        Double thresholdValue) {
+        Device device = findDeviceById(sourceDeviceId);
+        if (device == null) {
+            throw new IllegalArgumentException("Device not found");
+        }
+        if (device.getType() != DeviceType.SENSOR) {
+            throw new IllegalArgumentException("Threshold triggers require a sensor device");
+        }
+        if (thresholdOperator == null) {
+            throw new IllegalArgumentException("Threshold operator must not be null");
+        }
+        if (thresholdValue == null) {
+            throw new IllegalArgumentException("A threshold value is required");
+        }
+        return new RuleTrigger(RuleTriggerType.THRESHOLD, sourceDeviceId, thresholdValue, thresholdOperator, null, null);
+    }
+
+    private RuleTrigger createValidatedTimeTrigger(LocalTime triggerTime) {
+        if (triggerTime == null) {
+            throw new IllegalArgumentException("Trigger time must not be null");
+        }
+        return new RuleTrigger(RuleTriggerType.TIME, null, null, null, triggerTime, null);
     }
 
     private RuleAction createValidatedRuleAction(RuleActionType actionType, String targetDeviceId,
@@ -878,18 +1045,23 @@ public class SmartHomeSystem {
         }
 
         for (Rule rule : getActiveRules()) {
-            if (!rule.getTrigger().getSourceDeviceId().equals(changedDevice.getId())) {
+            RuleTrigger trigger = rule.getTrigger();
+            if (trigger.getSourceDeviceId() == null || !trigger.getSourceDeviceId().equals(changedDevice.getId())) {
                 continue;
             }
-            if (rule.getTrigger().getTriggerType() != RuleTriggerType.DEVICE_STATE_CHANGE) {
+            if (!ruleMatchesChangedDevice(rule, changedDevice)) {
                 continue;
             }
-            if (!ruleMatchesDeviceState(rule, changedDevice)) {
-                continue;
-            }
-
             executeRule(rule);
         }
+    }
+
+    private boolean ruleMatchesChangedDevice(Rule rule, Device device) {
+        return switch (rule.getTrigger().getTriggerType()) {
+            case DEVICE_STATE_CHANGE -> ruleMatchesDeviceState(rule, device);
+            case THRESHOLD -> ruleMatchesThreshold(rule, device);
+            case TIME -> false;
+        };
     }
 
     private boolean ruleMatchesDeviceState(Rule rule, Device device) {
@@ -899,6 +1071,18 @@ public class SmartHomeSystem {
             case BLIND -> expectedValue != null && Double.compare(device.getValue(), expectedValue) == 0;
             case DIMMER, THERMOSTAT, SENSOR ->
                     expectedValue != null && Double.compare(device.getValue(), expectedValue) == 0;
+        };
+    }
+
+    private boolean ruleMatchesThreshold(Rule rule, Device device) {
+        RuleTrigger trigger = rule.getTrigger();
+        if (device.getType() != DeviceType.SENSOR || trigger.getExpectedValue() == null
+                || trigger.getThresholdOperator() == null) {
+            return false;
+        }
+        return switch (trigger.getThresholdOperator()) {
+            case ABOVE -> device.getValue() > trigger.getExpectedValue();
+            case BELOW -> device.getValue() < trigger.getExpectedValue();
         };
     }
 
@@ -928,7 +1112,7 @@ public class SmartHomeSystem {
     private void removeRulesForDevice(String deviceId) {
         List<Rule> rulesToRemove = new ArrayList<>();
         for (Rule rule : getActiveRules()) {
-            if (rule.getTrigger().getSourceDeviceId().equals(deviceId)
+            if (deviceId.equals(rule.getTrigger().getSourceDeviceId())
                     || rule.getAction().getTargetDeviceId().equals(deviceId)) {
                 rulesToRemove.add(rule);
             }
@@ -939,7 +1123,9 @@ public class SmartHomeSystem {
     private void removeRulesForRoom(Room room) {
         List<Rule> rulesToRemove = new ArrayList<>();
         for (Rule rule : getActiveRules()) {
-            Room triggerRoom = findRoomContainingDevice(rule.getTrigger().getSourceDeviceId());
+            Room triggerRoom = rule.getTrigger().getSourceDeviceId() == null
+                    ? null
+                    : findRoomContainingDevice(rule.getTrigger().getSourceDeviceId());
             Room actionRoom = findRoomContainingDevice(rule.getAction().getTargetDeviceId());
             if ((triggerRoom != null && triggerRoom.getId().equals(room.getId()))
                     || (actionRoom != null && actionRoom.getId().equals(room.getId()))) {

@@ -6,6 +6,7 @@ import at.jku.se.smarthome.model.Rule;
 import at.jku.se.smarthome.model.RuleActionType;
 import at.jku.se.smarthome.model.RuleTriggerType;
 import at.jku.se.smarthome.model.SmartHomeSystem;
+import at.jku.se.smarthome.model.ThresholdOperator;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -26,6 +27,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -37,6 +39,9 @@ public class RuleController {
     private static final String BLIND_OPEN_LABEL = "Open";
     private static final String BLIND_CLOSED_LABEL = "Closed";
     private static final String VALUE_EQUALS_LABEL = "Value equals";
+    private static final String VALUE_ABOVE_LABEL = "Value above";
+    private static final String VALUE_BELOW_LABEL = "Value below";
+    private static final String TIME_AT_LABEL = "At time";
 
     private final SmartHomeSystem system = SmartHomeSystem.createPersistentSystem();
 
@@ -81,15 +86,7 @@ public class RuleController {
 
         RuleFormData ruleFormData = formData.get();
         try {
-            system.createRule(
-                    ruleFormData.name(),
-                    RuleTriggerType.DEVICE_STATE_CHANGE,
-                    ruleFormData.sourceDeviceId(),
-                    ruleFormData.expectedTriggerValue(),
-                    RuleActionType.SET_DEVICE_STATE,
-                    ruleFormData.targetDeviceId(),
-                    ruleFormData.targetActionValue()
-            );
+            createRule(ruleFormData);
             refreshRuleOverview();
         } catch (IllegalArgumentException | IllegalStateException exception) {
             showMessage("Invalid rule", exception.getMessage());
@@ -147,16 +144,7 @@ public class RuleController {
 
         RuleFormData ruleFormData = formData.get();
         try {
-            system.updateRule(
-                    rule.getId(),
-                    ruleFormData.name(),
-                    RuleTriggerType.DEVICE_STATE_CHANGE,
-                    ruleFormData.sourceDeviceId(),
-                    ruleFormData.expectedTriggerValue(),
-                    RuleActionType.SET_DEVICE_STATE,
-                    ruleFormData.targetDeviceId(),
-                    ruleFormData.targetActionValue()
-            );
+            updateRule(rule, ruleFormData);
             refreshRuleOverview();
         } catch (IllegalArgumentException | IllegalStateException exception) {
             showMessage("Invalid rule", exception.getMessage());
@@ -181,6 +169,13 @@ public class RuleController {
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
         TextField nameField = new TextField(existingRule == null ? "" : existingRule.getName());
+
+        ComboBox<RuleTriggerType> triggerTypeBox = new ComboBox<>();
+        triggerTypeBox.getItems().addAll(RuleTriggerType.DEVICE_STATE_CHANGE, RuleTriggerType.THRESHOLD, RuleTriggerType.TIME);
+        triggerTypeBox.setMaxWidth(Double.MAX_VALUE);
+        triggerTypeBox.getSelectionModel().select(existingRule == null
+                ? RuleTriggerType.DEVICE_STATE_CHANGE
+                : existingRule.getTrigger().getTriggerType());
 
         ComboBox<DeviceOption> sourceDeviceBox = new ComboBox<>();
         sourceDeviceBox.getItems().addAll(createDeviceOptions(devices));
@@ -208,13 +203,15 @@ public class RuleController {
             targetDeviceBox.getSelectionModel().selectFirst();
         }
 
-        updateTriggerControls(sourceDeviceBox, triggerConditionBox, triggerValueField, existingRule);
+        updateTriggerControls(triggerTypeBox, sourceDeviceBox, triggerConditionBox, triggerValueField, existingRule);
         updateActionControls(targetDeviceBox, actionBox, actionValueField, existingRule);
 
+        triggerTypeBox.valueProperty().addListener((observable, oldValue, newValue) ->
+                updateTriggerControls(triggerTypeBox, sourceDeviceBox, triggerConditionBox, triggerValueField, null));
         sourceDeviceBox.valueProperty().addListener((observable, oldValue, newValue) ->
-                updateTriggerControls(sourceDeviceBox, triggerConditionBox, triggerValueField, null));
+                updateTriggerControls(triggerTypeBox, sourceDeviceBox, triggerConditionBox, triggerValueField, null));
         triggerConditionBox.valueProperty().addListener((observable, oldValue, newValue) ->
-                updateRuleValueFieldState(triggerValueField, sourceDeviceBox.getValue(), newValue));
+                updateTriggerValueFieldState(triggerTypeBox.getValue(), triggerValueField, sourceDeviceBox.getValue(), newValue));
         targetDeviceBox.valueProperty().addListener((observable, oldValue, newValue) ->
                 updateActionControls(targetDeviceBox, actionBox, actionValueField, null));
         actionBox.valueProperty().addListener((observable, oldValue, newValue) ->
@@ -225,18 +222,20 @@ public class RuleController {
         form.setVgap(10);
         form.add(new Label("Name"), 0, 0);
         form.add(nameField, 1, 0);
-        form.add(new Label("When device"), 0, 1);
-        form.add(sourceDeviceBox, 1, 1);
-        form.add(new Label("Trigger"), 0, 2);
-        form.add(triggerConditionBox, 1, 2);
-        form.add(new Label("Trigger value"), 0, 3);
-        form.add(triggerValueField, 1, 3);
-        form.add(new Label("Then device"), 0, 4);
-        form.add(targetDeviceBox, 1, 4);
-        form.add(new Label("Action"), 0, 5);
-        form.add(actionBox, 1, 5);
-        form.add(new Label("Action value"), 0, 6);
-        form.add(actionValueField, 1, 6);
+        form.add(new Label("Trigger type"), 0, 1);
+        form.add(triggerTypeBox, 1, 1);
+        form.add(new Label("When device"), 0, 2);
+        form.add(sourceDeviceBox, 1, 2);
+        form.add(new Label("Trigger"), 0, 3);
+        form.add(triggerConditionBox, 1, 3);
+        form.add(new Label("Trigger value"), 0, 4);
+        form.add(triggerValueField, 1, 4);
+        form.add(new Label("Then device"), 0, 5);
+        form.add(targetDeviceBox, 1, 5);
+        form.add(new Label("Action"), 0, 6);
+        form.add(actionBox, 1, 6);
+        form.add(new Label("Action value"), 0, 7);
+        form.add(actionValueField, 1, 7);
 
         dialog.getDialogPane().setContent(form);
         dialog.setResultConverter(buttonType -> {
@@ -252,8 +251,12 @@ public class RuleController {
 
             return new RuleFormData(
                     nameField.getText(),
+                    triggerTypeBox.getValue(),
                     sourceDevice.deviceId(),
-                    parseRuleValue(sourceDevice.deviceType(), triggerConditionBox.getValue(), triggerValueField.getText()),
+                    parseTriggerValue(triggerTypeBox.getValue(), sourceDevice.deviceType(),
+                            triggerConditionBox.getValue(), triggerValueField.getText()),
+                    parseThresholdOperator(triggerTypeBox.getValue(), triggerConditionBox.getValue()),
+                    parseTriggerTime(triggerTypeBox.getValue(), triggerValueField.getText()),
                     targetDevice.deviceId(),
                     parseRuleValue(targetDevice.deviceType(), actionBox.getValue(), actionValueField.getText())
             );
@@ -288,8 +291,30 @@ public class RuleController {
         return null;
     }
 
-    private void updateTriggerControls(ComboBox<DeviceOption> sourceDeviceBox, ComboBox<String> triggerConditionBox,
+    private void updateTriggerControls(ComboBox<RuleTriggerType> triggerTypeBox, ComboBox<DeviceOption> sourceDeviceBox,
+                                       ComboBox<String> triggerConditionBox,
                                        TextField triggerValueField, Rule existingRule) {
+        RuleTriggerType triggerType = triggerTypeBox.getValue();
+        if (triggerType == RuleTriggerType.TIME) {
+            sourceDeviceBox.setDisable(true);
+            triggerConditionBox.getItems().setAll(TIME_AT_LABEL);
+            triggerConditionBox.getSelectionModel().select(TIME_AT_LABEL);
+            triggerValueField.setDisable(false);
+            triggerValueField.setText(existingRule == null || existingRule.getTrigger().getTriggerTime() == null
+                    ? "07:00"
+                    : existingRule.getTrigger().getTriggerTime().toString());
+            return;
+        }
+        sourceDeviceBox.setDisable(false);
+        if (triggerType == RuleTriggerType.THRESHOLD) {
+            triggerConditionBox.getItems().setAll(VALUE_ABOVE_LABEL, VALUE_BELOW_LABEL);
+            triggerConditionBox.getSelectionModel().select(determineInitialThresholdLabel(existingRule));
+            triggerValueField.setDisable(false);
+            triggerValueField.setText(existingRule == null || existingRule.getTrigger().getExpectedValue() == null
+                    ? defaultValueForDeviceType(DeviceType.SENSOR)
+                    : formatValue(existingRule.getTrigger().getExpectedValue()));
+            return;
+        }
         updateRuleControls(sourceDeviceBox, triggerConditionBox, triggerValueField, existingRule, true);
     }
 
@@ -384,6 +409,50 @@ public class RuleController {
         };
     }
 
+    private Double parseTriggerValue(RuleTriggerType triggerType, DeviceType deviceType, String label, String rawValue) {
+        if (triggerType == RuleTriggerType.TIME) {
+            return null;
+        }
+        if (triggerType == RuleTriggerType.THRESHOLD) {
+            return parseNumericValue(rawValue);
+        }
+        return parseRuleValue(deviceType, label, rawValue);
+    }
+
+    private ThresholdOperator parseThresholdOperator(RuleTriggerType triggerType, String label) {
+        if (triggerType != RuleTriggerType.THRESHOLD) {
+            return null;
+        }
+        return VALUE_BELOW_LABEL.equals(label) ? ThresholdOperator.BELOW : ThresholdOperator.ABOVE;
+    }
+
+    private LocalTime parseTriggerTime(RuleTriggerType triggerType, String rawValue) {
+        if (triggerType != RuleTriggerType.TIME) {
+            return null;
+        }
+        try {
+            return LocalTime.parse(rawValue.trim());
+        } catch (RuntimeException exception) {
+            throw new IllegalArgumentException("Please enter a time in HH:mm format", exception);
+        }
+    }
+
+    private void updateTriggerValueFieldState(RuleTriggerType triggerType, TextField valueField,
+                                              DeviceOption deviceOption, String label) {
+        if (triggerType == RuleTriggerType.TIME || triggerType == RuleTriggerType.THRESHOLD) {
+            valueField.setDisable(false);
+            return;
+        }
+        updateRuleValueFieldState(valueField, deviceOption, label);
+    }
+
+    private String determineInitialThresholdLabel(Rule existingRule) {
+        if (existingRule != null && existingRule.getTrigger().getThresholdOperator() == ThresholdOperator.BELOW) {
+            return VALUE_BELOW_LABEL;
+        }
+        return VALUE_ABOVE_LABEL;
+    }
+
     private Double parseNumericValue(String rawValue) {
         if (rawValue == null || rawValue.isBlank()) {
             throw new IllegalArgumentException("Please enter a numeric value");
@@ -408,6 +477,26 @@ public class RuleController {
         String sourceName = sourceDevice == null ? "Unknown device" : sourceDevice.getName();
         String targetName = targetDevice == null ? "Unknown device" : targetDevice.getName();
 
+        if (rule.getTrigger().getTriggerType() == RuleTriggerType.TIME) {
+            return String.format(
+                    Locale.ENGLISH,
+                    "WHEN time is %s THEN set %s to %s",
+                    rule.getTrigger().getTriggerTime(),
+                    targetName,
+                    formatConditionValue(targetDevice == null ? null : targetDevice.getType(), rule.getAction().getTargetValue())
+            );
+        }
+        if (rule.getTrigger().getTriggerType() == RuleTriggerType.THRESHOLD) {
+            return String.format(
+                    Locale.ENGLISH,
+                    "WHEN %s is %s %s THEN set %s to %s",
+                    sourceName,
+                    rule.getTrigger().getThresholdOperator() == ThresholdOperator.BELOW ? "below" : "above",
+                    formatValue(rule.getTrigger().getExpectedValue()),
+                    targetName,
+                    formatConditionValue(targetDevice == null ? null : targetDevice.getType(), rule.getAction().getTargetValue())
+            );
+        }
         return String.format(
                 Locale.ENGLISH,
                 "WHEN %s is %s THEN set %s to %s",
@@ -429,6 +518,77 @@ public class RuleController {
             case THERMOSTAT -> formatValue(value) + " °C";
             case SENSOR -> formatValue(value);
         };
+    }
+
+    private void createRule(RuleFormData ruleFormData) {
+        if (ruleFormData.triggerType() == RuleTriggerType.TIME) {
+            system.createTimeRule(
+                    ruleFormData.name(),
+                    ruleFormData.triggerTime(),
+                    RuleActionType.SET_DEVICE_STATE,
+                    ruleFormData.targetDeviceId(),
+                    ruleFormData.targetActionValue()
+            );
+            return;
+        }
+        if (ruleFormData.triggerType() == RuleTriggerType.THRESHOLD) {
+            system.createThresholdRule(
+                    ruleFormData.name(),
+                    ruleFormData.sourceDeviceId(),
+                    ruleFormData.thresholdOperator(),
+                    ruleFormData.expectedTriggerValue(),
+                    RuleActionType.SET_DEVICE_STATE,
+                    ruleFormData.targetDeviceId(),
+                    ruleFormData.targetActionValue()
+            );
+            return;
+        }
+        system.createRule(
+                ruleFormData.name(),
+                RuleTriggerType.DEVICE_STATE_CHANGE,
+                ruleFormData.sourceDeviceId(),
+                ruleFormData.expectedTriggerValue(),
+                RuleActionType.SET_DEVICE_STATE,
+                ruleFormData.targetDeviceId(),
+                ruleFormData.targetActionValue()
+        );
+    }
+
+    private void updateRule(Rule rule, RuleFormData ruleFormData) {
+        if (ruleFormData.triggerType() == RuleTriggerType.TIME) {
+            system.updateTimeRule(
+                    rule.getId(),
+                    ruleFormData.name(),
+                    ruleFormData.triggerTime(),
+                    RuleActionType.SET_DEVICE_STATE,
+                    ruleFormData.targetDeviceId(),
+                    ruleFormData.targetActionValue()
+            );
+            return;
+        }
+        if (ruleFormData.triggerType() == RuleTriggerType.THRESHOLD) {
+            system.updateThresholdRule(
+                    rule.getId(),
+                    ruleFormData.name(),
+                    ruleFormData.sourceDeviceId(),
+                    ruleFormData.thresholdOperator(),
+                    ruleFormData.expectedTriggerValue(),
+                    RuleActionType.SET_DEVICE_STATE,
+                    ruleFormData.targetDeviceId(),
+                    ruleFormData.targetActionValue()
+            );
+            return;
+        }
+        system.updateRule(
+                rule.getId(),
+                ruleFormData.name(),
+                RuleTriggerType.DEVICE_STATE_CHANGE,
+                ruleFormData.sourceDeviceId(),
+                ruleFormData.expectedTriggerValue(),
+                RuleActionType.SET_DEVICE_STATE,
+                ruleFormData.targetDeviceId(),
+                ruleFormData.targetActionValue()
+        );
     }
 
     private String formatValue(double value) {
@@ -481,8 +641,9 @@ public class RuleController {
         }
     }
 
-    private record RuleFormData(String name, String sourceDeviceId, Double expectedTriggerValue,
-                                String targetDeviceId, Double targetActionValue) {
+    private record RuleFormData(String name, RuleTriggerType triggerType, String sourceDeviceId,
+                                Double expectedTriggerValue, ThresholdOperator thresholdOperator,
+                                LocalTime triggerTime, String targetDeviceId, Double targetActionValue) {
     }
 
     private static String formatDeviceTypeLabel(DeviceType deviceType) {
