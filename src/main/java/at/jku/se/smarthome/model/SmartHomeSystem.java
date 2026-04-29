@@ -435,6 +435,7 @@ public class SmartHomeSystem {
         RuleTrigger trigger = createValidatedRuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue, null, null);
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
         Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
+        ensureNoPlanningConflict(rule, null);
         getActiveRules().add(rule);
         homeRepository.saveRule(userSession.getCurrentUser().getEmail(), rule);
         return rule;
@@ -465,6 +466,7 @@ public class SmartHomeSystem {
         );
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
         Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
+        ensureNoPlanningConflict(rule, null);
         getActiveRules().add(rule);
         homeRepository.saveRule(userSession.getCurrentUser().getEmail(), rule);
         return rule;
@@ -486,6 +488,7 @@ public class SmartHomeSystem {
         RuleTrigger trigger = createValidatedRuleTrigger(RuleTriggerType.TIME, null, null, null, triggerTime);
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
         Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
+        ensureNoPlanningConflict(rule, null);
         getActiveRules().add(rule);
         homeRepository.saveRule(userSession.getCurrentUser().getEmail(), rule);
         return rule;
@@ -514,6 +517,8 @@ public class SmartHomeSystem {
 
         RuleTrigger trigger = createValidatedRuleTrigger(triggerType, sourceDeviceId, expectedTriggerValue, null, null);
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
+        Rule updatedRule = new Rule(rule.getId(), name, trigger, action);
+        ensureNoPlanningConflict(updatedRule, rule.getId());
         rule.update(name, trigger, action);
         homeRepository.updateRule(rule);
     }
@@ -543,6 +548,8 @@ public class SmartHomeSystem {
                 null
         );
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
+        Rule updatedRule = new Rule(rule.getId(), name, trigger, action);
+        ensureNoPlanningConflict(updatedRule, rule.getId());
         rule.update(name, trigger, action);
         homeRepository.updateRule(rule);
     }
@@ -563,6 +570,8 @@ public class SmartHomeSystem {
         Rule rule = requireRule(ruleId);
         RuleTrigger trigger = createValidatedRuleTrigger(RuleTriggerType.TIME, null, null, null, triggerTime);
         RuleAction action = createValidatedRuleAction(actionType, targetDeviceId, targetActionValue);
+        Rule updatedRule = new Rule(rule.getId(), name, trigger, action);
+        ensureNoPlanningConflict(updatedRule, rule.getId());
         rule.update(name, trigger, action);
         homeRepository.updateRule(rule);
     }
@@ -623,6 +632,178 @@ public class SmartHomeSystem {
         return rule;
     }
 
+    private void ensureNoPlanningConflict(Rule candidateRule, String excludedRuleId) {
+        String conflictMessage = findRuleConflict(candidateRule, excludedRuleId);
+        if (conflictMessage != null) {
+            throw new PlanningConflictException(conflictMessage);
+        }
+    }
+
+    private void ensureNoPlanningConflict(Schedule candidateSchedule, String excludedScheduleId) {
+        String conflictMessage = findScheduleConflict(candidateSchedule, excludedScheduleId);
+        if (conflictMessage != null) {
+            throw new PlanningConflictException(conflictMessage);
+        }
+    }
+
+    private String findRuleConflict(Rule candidateRule, String excludedRuleId) {
+        String conflictMessage = null;
+        for (Rule existingRule : getActiveRules()) {
+            if (existingRule.getId().equals(excludedRuleId)) {
+                continue;
+            }
+            if (rulesConflict(candidateRule, existingRule)) {
+                conflictMessage = describeRuleConflict(candidateRule, existingRule);
+                break;
+            }
+        }
+        if (conflictMessage == null) {
+            conflictMessage = findRuleScheduleConflict(candidateRule);
+        }
+        return conflictMessage;
+    }
+
+    private String findScheduleConflict(Schedule candidateSchedule, String excludedScheduleId) {
+        String conflictMessage = null;
+        for (Schedule existingSchedule : getActiveSchedules()) {
+            if (existingSchedule.getId().equals(excludedScheduleId)) {
+                continue;
+            }
+            if (schedulesConflict(candidateSchedule, existingSchedule)) {
+                conflictMessage = describeScheduleConflict(candidateSchedule, existingSchedule);
+                break;
+            }
+        }
+        if (conflictMessage == null) {
+            conflictMessage = findScheduleRuleConflict(candidateSchedule);
+        }
+        return conflictMessage;
+    }
+
+    private String findRuleScheduleConflict(Rule candidateRule) {
+        String conflictMessage = null;
+        for (Schedule schedule : getActiveSchedules()) {
+            if (ruleConflictsWithSchedule(candidateRule, schedule)) {
+                conflictMessage = describeRuleScheduleConflict(candidateRule, schedule);
+                break;
+            }
+        }
+        return conflictMessage;
+    }
+
+    private String findScheduleRuleConflict(Schedule candidateSchedule) {
+        String conflictMessage = null;
+        for (Rule rule : getActiveRules()) {
+            if (ruleConflictsWithSchedule(rule, candidateSchedule)) {
+                conflictMessage = describeScheduleRuleConflict(candidateSchedule, rule);
+                break;
+            }
+        }
+        return conflictMessage;
+    }
+
+    private boolean rulesConflict(Rule firstRule, Rule secondRule) {
+        return firstRule.getAction().getTargetDeviceId().equals(secondRule.getAction().getTargetDeviceId())
+                && triggersOverlap(firstRule.getTrigger(), secondRule.getTrigger())
+                && valuesConflict(firstRule.getAction().getTargetValue(), secondRule.getAction().getTargetValue());
+    }
+
+    private boolean schedulesConflict(Schedule firstSchedule, Schedule secondSchedule) {
+        return firstSchedule.getDeviceId().equals(secondSchedule.getDeviceId())
+                && firstSchedule.getExecutionTime().equals(secondSchedule.getExecutionTime())
+                && daysOverlap(firstSchedule, secondSchedule)
+                && scheduleActionsConflict(firstSchedule, secondSchedule);
+    }
+
+    private boolean ruleConflictsWithSchedule(Rule rule, Schedule schedule) {
+        RuleTrigger trigger = rule.getTrigger();
+        return trigger.getTriggerType() == RuleTriggerType.TIME
+                && trigger.getTriggerTime().equals(schedule.getExecutionTime())
+                && rule.getAction().getTargetDeviceId().equals(schedule.getDeviceId())
+                && scheduleValueConflictsWithRule(schedule, rule);
+    }
+
+    private boolean triggersOverlap(RuleTrigger firstTrigger, RuleTrigger secondTrigger) {
+        boolean overlap = firstTrigger.getTriggerType() == secondTrigger.getTriggerType();
+        if (overlap && firstTrigger.getTriggerType() == RuleTriggerType.TIME) {
+            overlap = firstTrigger.getTriggerTime().equals(secondTrigger.getTriggerTime());
+        } else if (overlap) {
+            overlap = deviceTriggersOverlap(firstTrigger, secondTrigger);
+        }
+        return overlap;
+    }
+
+    private boolean deviceTriggersOverlap(RuleTrigger firstTrigger, RuleTrigger secondTrigger) {
+        return firstTrigger.getSourceDeviceId().equals(secondTrigger.getSourceDeviceId())
+                && valuesEqual(firstTrigger.getExpectedValue(), secondTrigger.getExpectedValue())
+                && firstTrigger.getThresholdOperator() == secondTrigger.getThresholdOperator();
+    }
+
+    private boolean daysOverlap(Schedule firstSchedule, Schedule secondSchedule) {
+        boolean overlap = false;
+        for (DayOfWeek dayOfWeek : firstSchedule.getRecurringDays()) {
+            if (secondSchedule.getRecurringDays().contains(dayOfWeek)) {
+                overlap = true;
+                break;
+            }
+        }
+        return overlap;
+    }
+
+    private boolean scheduleActionsConflict(Schedule firstSchedule, Schedule secondSchedule) {
+        return firstSchedule.getActionType() == ScheduleActionType.TOGGLE
+                || secondSchedule.getActionType() == ScheduleActionType.TOGGLE
+                || valuesConflict(firstSchedule.getTargetValue(), secondSchedule.getTargetValue());
+    }
+
+    private boolean scheduleValueConflictsWithRule(Schedule schedule, Rule rule) {
+        return schedule.getActionType() == ScheduleActionType.TOGGLE
+                || valuesConflict(schedule.getTargetValue(), rule.getAction().getTargetValue());
+    }
+
+    private boolean valuesConflict(Double firstValue, Double secondValue) {
+        return !valuesEqual(firstValue, secondValue);
+    }
+
+    private boolean valuesEqual(Double firstValue, Double secondValue) {
+        if (firstValue == null || secondValue == null) {
+            return firstValue == secondValue;
+        }
+        return Double.compare(firstValue, secondValue) == 0;
+    }
+
+    private String describeRuleConflict(Rule candidateRule, Rule existingRule) {
+        return "Rule '" + candidateRule.getName() + "' conflicts with rule '" + existingRule.getName()
+                + "': both can control device '" + resolveDeviceName(candidateRule.getAction().getTargetDeviceId())
+                + "' at the same time with different target states.";
+    }
+
+    private String describeScheduleConflict(Schedule candidateSchedule, Schedule existingSchedule) {
+        return "Schedule '" + candidateSchedule.getName() + "' conflicts with schedule '" + existingSchedule.getName()
+                + "': both run for device '" + resolveDeviceName(candidateSchedule.getDeviceId()) + "' at "
+                + candidateSchedule.getExecutionTime() + " on overlapping days with different target states.";
+    }
+
+    private String describeRuleScheduleConflict(Rule candidateRule, Schedule schedule) {
+        return "Rule '" + candidateRule.getName() + "' conflicts with schedule '" + schedule.getName()
+                + "': both control device '" + resolveDeviceName(schedule.getDeviceId()) + "' at "
+                + schedule.getExecutionTime() + " with different target states.";
+    }
+
+    private String describeScheduleRuleConflict(Schedule candidateSchedule, Rule rule) {
+        return "Schedule '" + candidateSchedule.getName() + "' conflicts with rule '" + rule.getName()
+                + "': both control device '" + resolveDeviceName(candidateSchedule.getDeviceId()) + "' at "
+                + candidateSchedule.getExecutionTime() + " with different target states.";
+    }
+
+    private String resolveDeviceName(String deviceId) {
+        Device device = findDeviceById(deviceId);
+        if (device == null) {
+            return deviceId;
+        }
+        return device.getName();
+    }
+
     /**
      * Creates and stores a recurring time-based schedule for the authenticated user.
      *
@@ -648,6 +829,7 @@ public class SmartHomeSystem {
                 executionTime,
                 recurringDays
         );
+        ensureNoPlanningConflict(schedule, null);
         getActiveSchedules().add(schedule);
         homeRepository.saveSchedule(userSession.getCurrentUser().getEmail(), schedule);
         return schedule;
@@ -672,6 +854,16 @@ public class SmartHomeSystem {
         }
 
         validateScheduleTarget(schedule.getDeviceId(), actionType, targetValue);
+        Schedule updatedSchedule = new Schedule(
+                schedule.getId(),
+                name,
+                schedule.getDeviceId(),
+                actionType,
+                targetValue,
+                executionTime,
+                recurringDays
+        );
+        ensureNoPlanningConflict(updatedSchedule, schedule.getId());
         schedule.update(name, actionType, targetValue, executionTime, recurringDays);
         homeRepository.updateSchedule(schedule);
     }
