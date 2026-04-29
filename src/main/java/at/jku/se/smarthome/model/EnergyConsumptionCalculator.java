@@ -7,18 +7,49 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Calculates estimated energy consumption aggregates from device state changes.
  */
+@SuppressWarnings({
+        "PMD.GodClass",
+        "PMD.TooManyMethods"
+})
 public final class EnergyConsumptionCalculator {
+    /**
+     * Estimated wattage of an active switch device.
+     */
     private static final double SWITCH_WATTS = 60.0;
+    /**
+     * Estimated wattage of a dimmer at 100 percent brightness.
+     */
     private static final double DIMMER_MAX_WATTS = 80.0;
+    /**
+     * Estimated thermostat wattage per configured degree Celsius.
+     */
     private static final double THERMOSTAT_WATTS_PER_DEGREE = 50.0;
+    /**
+     * Estimated continuous wattage of a sensor.
+     */
     private static final double SENSOR_WATTS = 2.0;
+    /**
+     * Percent base used for dimmer calculations.
+     */
     private static final double PERCENT = 100.0;
+    /**
+     * Number of seconds in one hour.
+     */
     private static final double SECONDS_PER_HOUR = 3600.0;
+    /**
+     * Leading numeric state parser.
+     */
+    private static final Pattern LEADING_NUMBER_PATTERN = Pattern.compile("^-?\\d+(\\.\\d+)?");
 
+    /**
+     * Clock used for reporting window boundaries.
+     */
     private final Clock clock;
 
     /**
@@ -117,6 +148,7 @@ public final class EnergyConsumptionCalculator {
     private String resolveInitialState(Device device, List<ActivityLogEntry> deviceEntries, Instant startInclusive) {
         ActivityLogEntry latestBeforeStart = null;
         ActivityLogEntry firstWithinWindow = null;
+        String initialState;
 
         for (ActivityLogEntry entry : deviceEntries) {
             if (entry.getTimestamp().isBefore(startInclusive)) {
@@ -129,22 +161,23 @@ public final class EnergyConsumptionCalculator {
         }
 
         if (latestBeforeStart != null) {
-            return latestBeforeStart.getNewState();
+            initialState = latestBeforeStart.getNewState();
+        } else if (firstWithinWindow != null) {
+            initialState = firstWithinWindow.getPreviousState();
+        } else {
+            initialState = device.getStatusText();
         }
-        if (firstWithinWindow != null) {
-            return firstWithinWindow.getPreviousState();
-        }
-        return device.getStatusText();
+        return initialState;
     }
 
     private double estimateWattHours(String state, DeviceType deviceType,
                                      Instant startInclusive, Instant endExclusive) {
-        if (!startInclusive.isBefore(endExclusive)) {
-            return 0.0;
+        double wattHours = 0.0;
+        if (startInclusive.isBefore(endExclusive)) {
+            double hours = Duration.between(startInclusive, endExclusive).toSeconds() / SECONDS_PER_HOUR;
+            wattHours = estimatePowerWatts(state, deviceType) * hours;
         }
-
-        double hours = Duration.between(startInclusive, endExclusive).toSeconds() / SECONDS_PER_HOUR;
-        return estimatePowerWatts(state, deviceType) * hours;
+        return wattHours;
     }
 
     private double estimatePowerWatts(String state, DeviceType deviceType) {
@@ -162,42 +195,28 @@ public final class EnergyConsumptionCalculator {
     }
 
     private double parseLeadingNumber(String value) {
-        if (value == null || value.isBlank()) {
-            return 0.0;
-        }
+        double parsedValue = 0.0;
 
-        StringBuilder numberBuilder = new StringBuilder();
-        String normalizedValue = value.trim().replace(',', '.');
-        for (int index = 0; index < normalizedValue.length(); index++) {
-            char currentCharacter = normalizedValue.charAt(index);
-            if (Character.isDigit(currentCharacter) || currentCharacter == '.' || currentCharacter == '-') {
-                numberBuilder.append(currentCharacter);
-                continue;
-            }
-            if (numberBuilder.length() > 0) {
-                break;
+        if (value != null && !value.isBlank()) {
+            String normalizedValue = value.trim().replace(',', '.');
+            Matcher matcher = LEADING_NUMBER_PATTERN.matcher(normalizedValue);
+            if (matcher.find()) {
+                parsedValue = Double.parseDouble(matcher.group());
             }
         }
 
-        if (numberBuilder.length() == 0) {
-            return 0.0;
-        }
-
-        try {
-            return Double.parseDouble(numberBuilder.toString());
-        } catch (NumberFormatException exception) {
-            return 0.0;
-        }
+        return parsedValue;
     }
 
     private double clamp(double value, double minimum, double maximum) {
+        double clampedValue = value;
         if (value < minimum) {
-            return minimum;
+            clampedValue = minimum;
         }
         if (value > maximum) {
-            return maximum;
+            clampedValue = maximum;
         }
-        return value;
+        return clampedValue;
     }
 
     private static List<Room> requireRooms(List<Room> rooms) {

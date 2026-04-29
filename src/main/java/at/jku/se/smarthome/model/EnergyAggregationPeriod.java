@@ -11,6 +11,9 @@ public enum EnergyAggregationPeriod {
     DAY("Today"),
     WEEK("This week");
 
+    /**
+     * Human-readable label used by the JavaFX choice box.
+     */
     private final String displayName;
 
     EnergyAggregationPeriod(String displayName) {

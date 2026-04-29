@@ -9,10 +9,25 @@ import java.util.List;
  */
 @SuppressWarnings("PMD.DataClass")
 public final class EnergyDashboard {
+    /**
+     * Selected reporting window.
+     */
     private final EnergyAggregationPeriod aggregationPeriod;
+    /**
+     * Inclusive start of the reporting window.
+     */
     private final Instant startInclusive;
+    /**
+     * Exclusive end of the reporting window.
+     */
     private final Instant endExclusive;
+    /**
+     * Room-level consumption breakdown.
+     */
     private final List<EnergyRoomConsumption> roomConsumptions;
+    /**
+     * Household-level consumption sum in kWh.
+     */
     private final double totalConsumptionKiloWattHours;
 
     /**
