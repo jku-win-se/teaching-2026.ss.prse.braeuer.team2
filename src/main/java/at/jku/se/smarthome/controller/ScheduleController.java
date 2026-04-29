@@ -2,6 +2,7 @@ package at.jku.se.smarthome.controller;
 
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.DeviceType;
+import at.jku.se.smarthome.model.PlanningConflictException;
 import at.jku.se.smarthome.model.Schedule;
 import at.jku.se.smarthome.model.ScheduleActionType;
 import at.jku.se.smarthome.model.SmartHomeSystem;
@@ -110,6 +111,8 @@ public class ScheduleController {
                     formData.recurringDays()
             );
             refreshScheduleOverview();
+        } catch (PlanningConflictException exception) {
+            showMessage("Planning conflict", exception.getMessage());
         } catch (IllegalArgumentException | IllegalStateException exception) {
             showMessage("Invalid schedule", exception.getMessage());
         }
@@ -178,6 +181,8 @@ public class ScheduleController {
                     formData.recurringDays()
             );
             refreshScheduleOverview();
+        } catch (PlanningConflictException exception) {
+            showMessage("Planning conflict", exception.getMessage());
         } catch (IllegalArgumentException | IllegalStateException exception) {
             showMessage("Invalid schedule", exception.getMessage());
         }

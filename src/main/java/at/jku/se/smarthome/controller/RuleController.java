@@ -2,6 +2,7 @@ package at.jku.se.smarthome.controller;
 
 import at.jku.se.smarthome.model.Device;
 import at.jku.se.smarthome.model.DeviceType;
+import at.jku.se.smarthome.model.PlanningConflictException;
 import at.jku.se.smarthome.model.Rule;
 import at.jku.se.smarthome.model.RuleActionType;
 import at.jku.se.smarthome.model.RuleTriggerType;
@@ -106,6 +107,8 @@ public class RuleController {
         try {
             createRule(ruleFormData);
             refreshRuleOverview();
+        } catch (PlanningConflictException exception) {
+            showMessage("Planning conflict", exception.getMessage());
         } catch (IllegalArgumentException | IllegalStateException exception) {
             showMessage("Invalid rule", exception.getMessage());
         }
@@ -169,6 +172,8 @@ public class RuleController {
         try {
             updateRule(rule, ruleFormData);
             refreshRuleOverview();
+        } catch (PlanningConflictException exception) {
+            showMessage("Planning conflict", exception.getMessage());
         } catch (IllegalArgumentException | IllegalStateException exception) {
             showMessage("Invalid rule", exception.getMessage());
         }
