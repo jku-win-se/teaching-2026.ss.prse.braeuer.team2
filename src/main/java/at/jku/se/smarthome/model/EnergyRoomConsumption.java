@@ -7,9 +7,21 @@ import java.util.List;
  */
 @SuppressWarnings("PMD.DataClass")
 public final class EnergyRoomConsumption {
+    /**
+     * Identifier of the room.
+     */
     private final String roomId;
+    /**
+     * Display name of the room.
+     */
     private final String roomName;
+    /**
+     * Per-device consumption values for this room.
+     */
     private final List<EnergyDeviceConsumption> deviceConsumptions;
+    /**
+     * Sum of all device consumption values in kWh.
+     */
     private final double totalConsumptionKiloWattHours;
 
     /**

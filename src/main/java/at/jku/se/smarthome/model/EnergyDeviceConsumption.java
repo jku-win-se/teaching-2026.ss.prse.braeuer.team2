@@ -5,11 +5,34 @@ package at.jku.se.smarthome.model;
  */
 @SuppressWarnings("PMD.DataClass")
 public final class EnergyDeviceConsumption {
+    /**
+     * Smallest allowed consumption value.
+     */
+    private static final double MINIMUM_CONSUMPTION_KILO_WATT_HOURS = 0.0;
+
+    /**
+     * Identifier of the room that owns the device.
+     */
     private final String roomId;
+    /**
+     * Display name of the room that owns the device.
+     */
     private final String roomName;
+    /**
+     * Identifier of the device.
+     */
     private final String deviceId;
+    /**
+     * Display name of the device.
+     */
     private final String deviceName;
+    /**
+     * Type of the device.
+     */
     private final DeviceType deviceType;
+    /**
+     * Estimated consumption in kWh.
+     */
     private final double consumptionKiloWattHours;
 
     /**
@@ -65,7 +88,7 @@ public final class EnergyDeviceConsumption {
     }
 
     private static double requireNonNegative(double candidate) {
-        if (candidate < 0.0) {
+        if (candidate < MINIMUM_CONSUMPTION_KILO_WATT_HOURS) {
             throw new IllegalArgumentException("Consumption must not be negative");
         }
         return candidate;
