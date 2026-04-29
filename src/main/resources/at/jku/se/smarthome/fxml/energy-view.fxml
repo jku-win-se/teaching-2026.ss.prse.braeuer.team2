@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ChoiceBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.layout.BorderPane?>
@@ -9,7 +10,7 @@
 <?import javafx.scene.layout.VBox?>
 
 <BorderPane xmlns:fx="http://javafx.com/fxml"
-            fx:controller="at.jku.se.smarthome.controller.RuleController"
+            fx:controller="at.jku.se.smarthome.controller.EnergyController"
             prefWidth="1100"
             prefHeight="700"
             style="-fx-background-color: #f7f5f2;">
@@ -29,8 +30,9 @@
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Rules"
+                                onAction="#openRules"
                                 prefWidth="150"
-                                style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Schedules"
                                 onAction="#openSchedules"
                                 prefWidth="150"
@@ -40,9 +42,8 @@
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Energy"
-                                onAction="#openEnergy"
                                 prefWidth="150"
-                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                                style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
                     </children>
                 </VBox>
             </children>
@@ -52,30 +53,42 @@
     <center>
         <VBox spacing="24" style="-fx-padding: 28;">
             <children>
-                <HBox>
+                <HBox spacing="12">
                     <children>
-                        <Label text="Rules"
+                        <Label text="Energy"
                                style="-fx-font-size: 28; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
                         <Region HBox.hgrow="ALWAYS" />
+                        <ChoiceBox fx:id="periodChoiceBox"
+                                   prefWidth="150" />
                         <Button text="Logout"
                                 onAction="#logout"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
-                        <Button text="+ Rule"
-                                fx:id="createRuleButton"
-                                onAction="#createRule"
-                                style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                     </children>
                 </HBox>
 
+                <VBox spacing="8"
+                      style="-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 18 20 18 20;">
+                    <children>
+                        <Label text="Household Total"
+                               style="-fx-font-size: 15; -fx-text-fill: #6e6257;" />
+                        <Label fx:id="totalConsumptionLabel"
+                               text="0.000 kWh"
+                               style="-fx-font-size: 30; -fx-font-weight: bold; -fx-text-fill: #e8752e;" />
+                        <Label fx:id="reportWindowLabel"
+                               text="-"
+                               style="-fx-text-fill: #8a6f5a;" />
+                    </children>
+                </VBox>
+
                 <VBox spacing="14">
                     <children>
-                        <Label text="Automation Rules"
+                        <Label text="Rooms and Devices"
                                style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
 
                         <ScrollPane fitToWidth="true"
                                     style="-fx-background-color: transparent; -fx-background: transparent;">
                             <content>
-                                <VBox fx:id="ruleListContainer"
+                                <VBox fx:id="roomConsumptionContainer"
                                       spacing="10"
                                       style="-fx-padding: 2;" />
                             </content>

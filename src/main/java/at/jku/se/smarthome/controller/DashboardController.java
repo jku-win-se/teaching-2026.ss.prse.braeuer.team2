@@ -85,6 +85,21 @@ public class DashboardController {
     }
 
     @FXML
+    public void openEnergy() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    DashboardController.class.getResource("/at/jku/se/smarthome/fxml/energy-view.fxml")
+            );
+            Scene scene = new Scene(loader.load(), 1000, 600);
+            stopSchedulePolling();
+            Stage stage = (Stage) roomListContainer.getScene().getWindow();
+            stage.setScene(scene);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to open energy view", exception);
+        }
+    }
+
+    @FXML
     public void createRoom() {
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Create Room");

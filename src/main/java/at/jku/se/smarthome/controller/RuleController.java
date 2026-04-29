@@ -80,6 +80,11 @@ public class RuleController {
     }
 
     @FXML
+    public void openEnergy() {
+        navigateTo("/at/jku/se/smarthome/fxml/energy-view.fxml", 1000, 600, "Failed to open energy view");
+    }
+
+    @FXML
     public void logout() {
         system.logoutUser();
         openAuthView();

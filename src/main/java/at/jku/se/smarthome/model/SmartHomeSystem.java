@@ -378,6 +378,17 @@ public class SmartHomeSystem {
     }
 
     /**
+     * Calculates the estimated energy consumption dashboard for the active home.
+     *
+     * @param aggregationPeriod the requested aggregation period
+     * @return the calculated energy dashboard
+     */
+    public EnergyDashboard getEnergyDashboard(EnergyAggregationPeriod aggregationPeriod) {
+        EnergyConsumptionCalculator calculator = new EnergyConsumptionCalculator(clock);
+        return calculator.calculate(getRooms(), getActivityLog(), aggregationPeriod);
+    }
+
+    /**
      * Returns the in-app notifications for rule execution results.
      *
      * @return a defensive copy of the rule execution notifications
