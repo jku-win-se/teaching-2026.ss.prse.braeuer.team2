@@ -60,6 +60,9 @@
                         <Region HBox.hgrow="ALWAYS" />
                         <ChoiceBox fx:id="periodChoiceBox"
                                    prefWidth="150" />
+                        <Button text="Export CSV"
+                                onAction="#exportEnergySummary"
+                                style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                         <Button text="Logout"
                                 onAction="#logout"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
