@@ -2,20 +2,25 @@ package at.jku.se.smarthome.controller;
 
 import at.jku.se.smarthome.model.ActivityActorType;
 import at.jku.se.smarthome.model.ActivityLogEntry;
+import at.jku.se.smarthome.model.CsvExportService;
 import at.jku.se.smarthome.model.SmartHomeSystem;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Label;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextBoundsType;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.io.File;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
@@ -100,6 +105,19 @@ public class ActivityController {
         openAuthView();
     }
 
+    @FXML
+    public void exportActivityLog() {
+        File exportFile = chooseCsvFile("Export Activity Log", "activity-log.csv");
+        if (exportFile != null) {
+            try {
+                CsvExportService.writeActivityLogCsv(exportFile.toPath(), system.getActivityLog());
+                showMessage("Export complete", "Activity log CSV was exported successfully.");
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                showMessage("Export failed", exception.getMessage());
+            }
+        }
+    }
+
     private void refreshActivityOverview() {
         activityListContainer.getChildren().clear();
 
@@ -139,6 +157,23 @@ public class ActivityController {
     private String formatActor(ActivityLogEntry entry) {
         String actorPrefix = entry.getActorType() == ActivityActorType.USER ? "User" : "Rule";
         return actorPrefix + ": " + entry.getActorName();
+    }
+
+    private File chooseCsvFile(String title, String initialFileName) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle(title);
+        fileChooser.setInitialFileName(initialFileName);
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV files", "*.csv"));
+        Stage stage = (Stage) activityListContainer.getScene().getWindow();
+        return fileChooser.showSaveDialog(stage);
+    }
+
+    private void showMessage(String title, String message) {
+        Alert alert = new Alert(AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private void openAuthView() {

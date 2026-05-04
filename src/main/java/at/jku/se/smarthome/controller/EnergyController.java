@@ -1,5 +1,6 @@
 package at.jku.se.smarthome.controller;
 
+import at.jku.se.smarthome.model.CsvExportService;
 import at.jku.se.smarthome.model.EnergyAggregationPeriod;
 import at.jku.se.smarthome.model.EnergyDashboard;
 import at.jku.se.smarthome.model.EnergyDeviceConsumption;
@@ -9,13 +10,17 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -91,6 +96,20 @@ public class EnergyController {
         openAuthView();
     }
 
+    @FXML
+    public void exportEnergySummary() {
+        File exportFile = chooseCsvFile("Export Energy Summary", "energy-summary.csv");
+        if (exportFile != null) {
+            try {
+                EnergyDashboard dashboard = system.getEnergyDashboard(periodChoiceBox.getValue());
+                CsvExportService.writeEnergyDashboardCsv(exportFile.toPath(), dashboard);
+                showMessage("Export complete", "Energy summary CSV was exported successfully.");
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                showMessage("Export failed", exception.getMessage());
+            }
+        }
+    }
+
     private void refreshEnergyDashboard() {
         EnergyAggregationPeriod selectedPeriod = periodChoiceBox.getValue();
         EnergyDashboard dashboard = system.getEnergyDashboard(selectedPeriod);
@@ -158,6 +177,23 @@ public class EnergyController {
 
     private String formatKiloWattHours(double value) {
         return String.format(Locale.ENGLISH, "%.3f kWh", value);
+    }
+
+    private File chooseCsvFile(String title, String initialFileName) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle(title);
+        fileChooser.setInitialFileName(initialFileName);
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV files", "*.csv"));
+        Stage stage = (Stage) roomConsumptionContainer.getScene().getWindow();
+        return fileChooser.showSaveDialog(stage);
+    }
+
+    private void showMessage(String title, String message) {
+        Alert alert = new Alert(AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private void navigateTo(String resourcePath, String errorMessage) {

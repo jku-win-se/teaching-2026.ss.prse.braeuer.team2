@@ -57,6 +57,9 @@
                         <Label text="Activity"
                                style="-fx-font-size: 28; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
                         <Region HBox.hgrow="ALWAYS" />
+                        <Button text="Export CSV"
+                                onAction="#exportActivityLog"
+                                style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                         <Button text="Logout"
                                 onAction="#logout"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
