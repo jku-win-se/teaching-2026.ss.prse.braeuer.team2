@@ -1,24 +1,28 @@
 # Systemdokumentation
 
 ## Überblick
+Das System ist eine JavaFX-basierte Smart-Home-Anwendung zur Verwaltung von Geräten, Räume, Zeitplänen, Regeln, Energieverbrauch und Benutzerollen.
 
-Kurze Beschreibung von Zweck und Umfang des Systems.
 
 ## Architektur
 
-- UI: `SimpleCalculator`
-- Domänenlogik: Operationen in `operators/`
-- Erzeugung: `OperationFactory`
+- UI: JavaFX mit FXML-Views und Controllern
+- Domänenlogik: Klassen im Package 'model'
+- Startpunkt: `main.java`
 
 ## Wichtige Designentscheidungen
 
-Dokumentiert technische Entscheidungen und deren Begründung.
+Die Anwendung ist schichtenorientierung aufgebaut.
+UI, Logik und Datenzugriff sind getrennt, damit Funktionen leichter getestet, erweitert und gewartet werden können.
 
 ## Erweiterungspunkte
 
-- Neue Operatoren implementieren
-- Factory erweitern
-- Zusätzliche Tests ergänzen
+- Neue Gerätentypen ergänzen, z. B. Kamera, Heizung, oder Lautsprecher
+- Neue Regeln hinzufügen
+- Weiter Auswertungen ergänzen, z. B. Energieverbrauch pro Monat
+- Zusätzliche Speicherarten einbauen, z. B. Datenbank statt In-Memory-Speicherung
+- Weitere Tests ergänzen, wenn neue Funktionen dazukommen
+
 
 ## Build und Qualität
 
@@ -28,8 +32,8 @@ Dokumentiert technische Entscheidungen und deren Begründung.
 
 ## Testfallbeschreibung und Testabdeckung
 
-- Beschreibung der wichtigsten Testfälle
-- Aktuelle Testabdeckung: 80 % (ohne UI-Klassen)
+- Die Tests prüfen zentrale Funktionen wie Benutzerregistrierung und Login, Rollenrechte, Geräte- und Raumverwaltung, Zeitpläne, Regeln, Konflikterkennung, Energieauswertung und CSV-Export.
+- Aktuelle Testabdeckung: 84,2 % (ohne UI-Klassen)
 
 
 
