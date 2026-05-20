@@ -3,6 +3,7 @@ package at.jku.se.smarthome.iot;
 /**
  * Default integration that keeps the smart home fully virtual.
  */
+@SuppressWarnings("PMD.AtLeastOneConstructor")
 public class NoOpIoTIntegration implements IoTIntegration {
 
     @Override

@@ -8,9 +8,24 @@ import at.jku.se.smarthome.model.DeviceType;
  */
 @SuppressWarnings("PMD.DataClass")
 public class DeviceStateMessage {
+    /**
+     * Identifier of the affected smart home device.
+     */
     private final String deviceId;
+
+    /**
+     * Type of the affected smart home device.
+     */
     private final DeviceType deviceType;
+
+    /**
+     * Power state reported for the affected device.
+     */
     private final boolean poweredOn;
+
+    /**
+     * Numeric device value, if the device type supports one.
+     */
     private final Double value;
 
     /**
@@ -48,18 +63,38 @@ public class DeviceStateMessage {
         return new DeviceStateMessage(device.getId(), device.getType(), device.isOn(), numericValue);
     }
 
+    /**
+     * Returns the identifier of the affected smart home device.
+     *
+     * @return the device id
+     */
     public String getDeviceId() {
         return deviceId;
     }
 
+    /**
+     * Returns the type of the affected smart home device.
+     *
+     * @return the device type
+     */
     public DeviceType getDeviceType() {
         return deviceType;
     }
 
+    /**
+     * Returns whether the affected smart home device is powered on.
+     *
+     * @return {@code true} if the device is powered on
+     */
     public boolean isPoweredOn() {
         return poweredOn;
     }
 
+    /**
+     * Returns the numeric device value, if available.
+     *
+     * @return the numeric value, or {@code null}
+     */
     public Double getValue() {
         return value;
     }
