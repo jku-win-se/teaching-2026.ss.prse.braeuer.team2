@@ -19,6 +19,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import at.jku.se.smarthome.iot.DeviceStateMessage;
+import at.jku.se.smarthome.iot.IoTIntegration;
+import at.jku.se.smarthome.iot.NoOpIoTIntegration;
 import at.jku.se.smarthome.repository.HomeRepository;
 import at.jku.se.smarthome.repository.InMemoryHomeRepository;
 import at.jku.se.smarthome.repository.InMemoryUserRepository;
@@ -55,6 +58,7 @@ public class SmartHomeSystem {
     private final HomeRepository homeRepository;
     private final UserSession userSession;
     private final Clock clock;
+    private final IoTIntegration iotIntegration;
 
     public SmartHomeSystem() {
         this(new InMemoryUserRepository(), new InMemoryHomeRepository(), Clock.systemDefaultZone());
@@ -87,6 +91,19 @@ public class SmartHomeSystem {
      * @param clock the clock used to timestamp state changes
      */
     public SmartHomeSystem(UserRepository userRepository, HomeRepository homeRepository, Clock clock) {
+        this(userRepository, homeRepository, clock, new NoOpIoTIntegration());
+    }
+
+    /**
+     * Creates a system with repositories, clock and optional IoT integration.
+     *
+     * @param userRepository the repository used to persist users
+     * @param homeRepository the repository used to persist rooms, devices and activity log entries
+     * @param clock the clock used to timestamp state changes
+     * @param iotIntegration the optional IoT integration
+     */
+    public SmartHomeSystem(UserRepository userRepository, HomeRepository homeRepository, Clock clock,
+                           IoTIntegration iotIntegration) {
         this.rooms = new ArrayList<>();
         this.activityLog = new ArrayList<>();
         this.ruleNotifications = new ArrayList<>();
@@ -105,6 +122,8 @@ public class SmartHomeSystem {
         this.homeRepository = homeRepository;
         this.userSession = new UserSession();
         this.clock = clock;
+        this.iotIntegration = iotIntegration == null ? new NoOpIoTIntegration() : iotIntegration;
+        this.iotIntegration.setStatusListener(this::applyIncomingDeviceStatus);
     }
 
     /**
@@ -314,8 +333,7 @@ public class SmartHomeSystem {
         device.toggle();
         homeRepository.updateDevice(device);
         String newState = describeDeviceState(device);
-        logDeviceStateChange(device, actorType, actorName, previousState, newState);
-        evaluateRulesAfterDeviceChange(device, previousState, newState);
+        completeDeviceStateChange(device, actorType, actorName, previousState, newState, true);
     }
 
     /**
@@ -353,8 +371,7 @@ public class SmartHomeSystem {
             return;
         }
         homeRepository.updateDevice(device);
-        logDeviceStateChange(device, actorType, actorName, previousState, newState);
-        evaluateRulesAfterDeviceChange(device, previousState, newState);
+        completeDeviceStateChange(device, actorType, actorName, previousState, newState, true);
     }
 
     private void setSwitchStateInternal(String deviceId, boolean on, ActivityActorType actorType, String actorName) {
@@ -373,8 +390,30 @@ public class SmartHomeSystem {
             return;
         }
         homeRepository.updateDevice(device);
-        logDeviceStateChange(device, actorType, actorName, previousState, newState);
-        evaluateRulesAfterDeviceChange(device, previousState, newState);
+        completeDeviceStateChange(device, actorType, actorName, previousState, newState, true);
+    }
+
+    /**
+     * Opens the optional IoT integration connection.
+     */
+    public void connectIoTIntegration() {
+        iotIntegration.connect();
+    }
+
+    /**
+     * Closes the optional IoT integration connection.
+     */
+    public void disconnectIoTIntegration() {
+        iotIntegration.disconnect();
+    }
+
+    /**
+     * Returns whether the optional IoT integration is connected.
+     *
+     * @return {@code true} if connected, otherwise {@code false}
+     */
+    public boolean isIoTIntegrationConnected() {
+        return iotIntegration.isConnected();
     }
 
     /**
@@ -1344,6 +1383,45 @@ public class SmartHomeSystem {
         if (userSession.isLoggedIn()) {
             homeRepository.saveActivityLogEntry(userSession.getCurrentUser().getEmail(), entry);
         }
+    }
+
+    private void completeDeviceStateChange(Device device, ActivityActorType actorType, String actorName,
+                                           String previousState, String newState, boolean publishToIoT) {
+        logDeviceStateChange(device, actorType, actorName, previousState, newState);
+        evaluateRulesAfterDeviceChange(device, previousState, newState);
+        if (publishToIoT) {
+            iotIntegration.publishDeviceState(DeviceStateMessage.fromDevice(device));
+        }
+    }
+
+    private void applyIncomingDeviceStatus(DeviceStateMessage message) {
+        if (message == null) {
+            return;
+        }
+        Device device = findDeviceById(message.getDeviceId());
+        if (device == null || device.getType() != message.getDeviceType()) {
+            return;
+        }
+
+        String previousState = describeDeviceState(device);
+        applyIncomingDeviceState(device, message);
+        String newState = describeDeviceState(device);
+        if (previousState.equals(newState)) {
+            return;
+        }
+        homeRepository.updateDevice(device);
+        completeDeviceStateChange(device, ActivityActorType.USER, "IoT Integration", previousState, newState, false);
+    }
+
+    private void applyIncomingDeviceState(Device device, DeviceStateMessage message) {
+        if (device.getType() == DeviceType.SWITCH) {
+            device.setPowerState(message.isPoweredOn());
+            return;
+        }
+        if (message.getValue() == null) {
+            throw new IllegalArgumentException("Incoming device value must not be null");
+        }
+        device.setValue(message.getValue());
     }
 
     private String resolveManualActorName() {
