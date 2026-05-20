@@ -76,6 +76,11 @@ public class RuleController {
     }
 
     @FXML
+    public void openScenes() {
+        navigateTo("/at/jku/se/smarthome/fxml/scenes-view.fxml", 1000, 600, "Failed to open scenes view");
+    }
+
+    @FXML
     public void openActivity() {
         navigateTo("/at/jku/se/smarthome/fxml/activity-view.fxml", 1000, 600, "Failed to open activity view");
     }

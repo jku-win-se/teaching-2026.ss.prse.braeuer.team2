@@ -86,6 +86,11 @@ public class EnergyController {
     }
 
     @FXML
+    public void openScenes() {
+        navigateTo("/at/jku/se/smarthome/fxml/scenes-view.fxml", "Failed to open scenes view");
+    }
+
+    @FXML
     public void openActivity() {
         navigateTo("/at/jku/se/smarthome/fxml/activity-view.fxml", "Failed to open activity view");
     }

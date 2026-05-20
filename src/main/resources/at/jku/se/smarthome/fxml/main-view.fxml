@@ -36,6 +36,10 @@
                                 onAction="#openSchedules"
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Scenes"
+                                onAction="#openScenes"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Activity"
                                 onAction="#openActivity"
                                 prefWidth="150"

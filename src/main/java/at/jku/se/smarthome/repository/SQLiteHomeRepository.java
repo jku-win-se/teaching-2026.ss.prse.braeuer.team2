@@ -12,6 +12,8 @@ import at.jku.se.smarthome.model.RuleTrigger;
 import at.jku.se.smarthome.model.RuleTriggerType;
 import at.jku.se.smarthome.model.Schedule;
 import at.jku.se.smarthome.model.ScheduleActionType;
+import at.jku.se.smarthome.model.Scene;
+import at.jku.se.smarthome.model.SceneDeviceState;
 import at.jku.se.smarthome.model.ThresholdOperator;
 
 import java.sql.Connection;
@@ -186,6 +188,45 @@ public class SQLiteHomeRepository implements HomeRepository {
     }
 
     @Override
+    public List<Scene> findScenesByUserEmail(String userEmail) {
+        String sql = """
+                SELECT s.id AS scene_id, s.name AS scene_name,
+                       ds.device_id AS device_id, ds.target_value AS target_value
+                FROM scenes s
+                LEFT JOIN scene_device_states ds ON ds.scene_id = s.id
+                WHERE s.user_email = ?
+                ORDER BY s.name, s.id, ds.device_id
+                """;
+
+        Map<String, String> sceneNamesById = new LinkedHashMap<>();
+        Map<String, List<SceneDeviceState>> sceneStatesById = new LinkedHashMap<>();
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userEmail);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    String sceneId = resultSet.getString("scene_id");
+                    sceneNamesById.putIfAbsent(sceneId, resultSet.getString("scene_name"));
+                    sceneStatesById.computeIfAbsent(sceneId, ignored -> new ArrayList<>());
+                    String deviceId = resultSet.getString("device_id");
+                    if (deviceId != null) {
+                        sceneStatesById.get(sceneId).add(new SceneDeviceState(
+                                deviceId,
+                                resultSet.getDouble("target_value")
+                        ));
+                    }
+                }
+            }
+
+            return mapScenes(sceneNamesById, sceneStatesById);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to query scenes", exception);
+        }
+    }
+
+    @Override
     public void saveRoom(String userEmail, Room room) {
         String sql = "INSERT INTO rooms(id, user_email, name) VALUES(?, ?, ?)";
 
@@ -337,6 +378,24 @@ public class SQLiteHomeRepository implements HomeRepository {
     }
 
     @Override
+    public void saveScene(String userEmail, Scene scene) {
+        String sql = "INSERT INTO scenes(id, user_email, name) VALUES(?, ?, ?)";
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            connection.setAutoCommit(false);
+            statement.setString(1, scene.getId());
+            statement.setString(2, userEmail);
+            statement.setString(3, scene.getName());
+            statement.executeUpdate();
+            saveSceneDeviceStates(connection, scene);
+            connection.commit();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to save scene", exception);
+        }
+    }
+
+    @Override
     public void updateRule(Rule rule) {
         String sql = """
                 UPDATE rules
@@ -362,6 +421,27 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to update rule", exception);
+        }
+    }
+
+    @Override
+    public void updateScene(Scene scene) {
+        String updateSceneSql = "UPDATE scenes SET name = ? WHERE id = ?";
+        String deleteStatesSql = "DELETE FROM scene_device_states WHERE scene_id = ?";
+
+        try (Connection connection = openConnection();
+             PreparedStatement updateSceneStatement = connection.prepareStatement(updateSceneSql);
+             PreparedStatement deleteStatesStatement = connection.prepareStatement(deleteStatesSql)) {
+            connection.setAutoCommit(false);
+            updateSceneStatement.setString(1, scene.getName());
+            updateSceneStatement.setString(2, scene.getId());
+            updateSceneStatement.executeUpdate();
+            deleteStatesStatement.setString(1, scene.getId());
+            deleteStatesStatement.executeUpdate();
+            saveSceneDeviceStates(connection, scene);
+            connection.commit();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to update scene", exception);
         }
     }
 
@@ -417,6 +497,32 @@ public class SQLiteHomeRepository implements HomeRepository {
     }
 
     @Override
+    public void deleteScene(String sceneId) {
+        String sql = "DELETE FROM scenes WHERE id = ?";
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, sceneId);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete scene", exception);
+        }
+    }
+
+    @Override
+    public void deleteScenesByUserEmail(String userEmail) {
+        String sql = "DELETE FROM scenes WHERE user_email = ?";
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userEmail);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete user scenes", exception);
+        }
+    }
+
+    @Override
     public void deleteDevice(String deviceId) {
         String sql = "DELETE FROM devices WHERE id = ?";
 
@@ -426,6 +532,35 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to delete device", exception);
+        }
+    }
+
+    private List<Scene> mapScenes(Map<String, String> sceneNamesById,
+                                  Map<String, List<SceneDeviceState>> sceneStatesById) {
+        List<Scene> scenes = new ArrayList<>();
+        for (Map.Entry<String, String> sceneEntry : sceneNamesById.entrySet()) {
+            List<SceneDeviceState> deviceStates = sceneStatesById.get(sceneEntry.getKey());
+            if (deviceStates != null && !deviceStates.isEmpty()) {
+                scenes.add(new Scene(sceneEntry.getKey(), sceneEntry.getValue(), deviceStates));
+            }
+        }
+        return scenes;
+    }
+
+    private void saveSceneDeviceStates(Connection connection, Scene scene) throws SQLException {
+        String sql = """
+                INSERT INTO scene_device_states(scene_id, device_id, target_value)
+                VALUES(?, ?, ?)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (SceneDeviceState deviceState : scene.getDeviceStates()) {
+                statement.setString(1, scene.getId());
+                statement.setString(2, deviceState.getDeviceId());
+                statement.setDouble(3, deviceState.getTargetValue());
+                statement.addBatch();
+            }
+            statement.executeBatch();
         }
     }
 
@@ -674,6 +809,24 @@ public class SQLiteHomeRepository implements HomeRepository {
                     FOREIGN KEY(action_device_id) REFERENCES devices(id) ON DELETE CASCADE
                 )
                 """;
+        String createScenesSql = """
+                CREATE TABLE IF NOT EXISTS scenes (
+                    id TEXT PRIMARY KEY,
+                    user_email TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    FOREIGN KEY(user_email) REFERENCES users(email) ON DELETE CASCADE
+                )
+                """;
+        String createSceneDeviceStatesSql = """
+                CREATE TABLE IF NOT EXISTS scene_device_states (
+                    scene_id TEXT NOT NULL,
+                    device_id TEXT NOT NULL,
+                    target_value REAL NOT NULL,
+                    PRIMARY KEY(scene_id, device_id),
+                    FOREIGN KEY(scene_id) REFERENCES scenes(id) ON DELETE CASCADE,
+                    FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
+                )
+                """;
 
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {
@@ -682,6 +835,8 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.execute(createActivityLogSql);
             statement.execute(createSchedulesSql);
             statement.execute(createRulesSql);
+            statement.execute(createScenesSql);
+            statement.execute(createSceneDeviceStatesSql);
             ensureActivityLogColumns(connection);
             ensureRuleColumns(connection);
         } catch (SQLException exception) {
