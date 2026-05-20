@@ -82,6 +82,11 @@ public class ScheduleController {
     }
 
     @FXML
+    public void openScenes() {
+        navigateTo("/at/jku/se/smarthome/fxml/scenes-view.fxml", 1000, 600, "Failed to open scenes view");
+    }
+
+    @FXML
     public void openEnergy() {
         navigateTo("/at/jku/se/smarthome/fxml/energy-view.fxml", 1000, 600, "Failed to open energy view");
     }

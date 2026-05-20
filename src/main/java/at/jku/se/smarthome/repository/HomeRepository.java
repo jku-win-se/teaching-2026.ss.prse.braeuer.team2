@@ -5,6 +5,7 @@ import at.jku.se.smarthome.model.Room;
 import at.jku.se.smarthome.model.ActivityLogEntry;
 import at.jku.se.smarthome.model.Rule;
 import at.jku.se.smarthome.model.Schedule;
+import at.jku.se.smarthome.model.Scene;
 
 import java.util.List;
 
@@ -44,6 +45,14 @@ public interface HomeRepository {
      * @return the stored rules for the user
      */
     List<Rule> findRulesByUserEmail(String userEmail);
+
+    /**
+     * Loads all scenes for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @return the stored scenes for the user
+     */
+    List<Scene> findScenesByUserEmail(String userEmail);
 
     /**
      * Stores a room for the given user.
@@ -113,11 +122,26 @@ public interface HomeRepository {
     void saveRule(String userEmail, Rule rule);
 
     /**
+     * Stores a scene for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @param scene the scene to store
+     */
+    void saveScene(String userEmail, Scene scene);
+
+    /**
      * Updates a stored rule.
      *
      * @param rule the rule to update
      */
     void updateRule(Rule rule);
+
+    /**
+     * Updates a stored scene.
+     *
+     * @param scene the scene to update
+     */
+    void updateScene(Scene scene);
 
     /**
      * Stores an activity log entry for the given user.
@@ -140,6 +164,20 @@ public interface HomeRepository {
      * @param ruleId the rule id
      */
     void deleteRule(String ruleId);
+
+    /**
+     * Deletes a stored scene.
+     *
+     * @param sceneId the scene id
+     */
+    void deleteScene(String sceneId);
+
+    /**
+     * Deletes all scenes for the given user.
+     *
+     * @param userEmail the owning user's email address
+     */
+    void deleteScenesByUserEmail(String userEmail);
 
     /**
      * Deletes a stored device.

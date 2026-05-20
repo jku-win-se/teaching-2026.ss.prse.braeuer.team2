@@ -168,6 +168,21 @@ public class DashboardController {
         }
     }
 
+    @FXML
+    public void openScenes() {
+        try {
+            stopSchedulePolling();
+            FXMLLoader loader = new FXMLLoader(
+                    DashboardController.class.getResource("/at/jku/se/smarthome/fxml/scenes-view.fxml")
+            );
+            Scene scene = new Scene(loader.load(), 1000, 600);
+            Stage stage = (Stage) roomListContainer.getScene().getWindow();
+            stage.setScene(scene);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to open scenes view", exception);
+        }
+    }
+
     private void refreshDashboard() {
         refreshNotifications();
         refreshRoomOverview();

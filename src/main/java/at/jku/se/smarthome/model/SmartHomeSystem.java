@@ -42,11 +42,14 @@ public class SmartHomeSystem {
     private final List<RuleExecutionNotification> ruleNotifications;
     private final List<Rule> rules;
     private final List<Schedule> schedules;
+    private final List<Scene> scenes;
     private final Map<String, List<Room>> userRooms;
     private final Map<String, List<ActivityLogEntry>> userActivityLog;
     private final Map<String, List<RuleExecutionNotification>> userRuleNotifications;
     private final Map<String, List<Rule>> userRules;
     private final Map<String, List<Schedule>> userSchedules;
+    private final Map<String, List<Scene>> userScenes;
+    private final Map<String, List<SceneDeviceState>> activeScenePreviousStates;
     private final Set<String> executingRuleIds;
     private final UserRepository userRepository;
     private final HomeRepository homeRepository;
@@ -89,11 +92,14 @@ public class SmartHomeSystem {
         this.ruleNotifications = new ArrayList<>();
         this.rules = new ArrayList<>();
         this.schedules = new ArrayList<>();
+        this.scenes = new ArrayList<>();
         this.userRooms = new HashMap<>();
         this.userActivityLog = new HashMap<>();
         this.userRuleNotifications = new HashMap<>();
         this.userRules = new HashMap<>();
         this.userSchedules = new HashMap<>();
+        this.userScenes = new HashMap<>();
+        this.activeScenePreviousStates = new HashMap<>();
         this.executingRuleIds = new HashSet<>();
         this.userRepository = userRepository;
         this.homeRepository = homeRepository;
@@ -132,11 +138,13 @@ public class SmartHomeSystem {
     public void clearRooms() {
         requireOwnerIfAuthenticated();
         if (userSession.isLoggedIn()) {
+            homeRepository.deleteScenesByUserEmail(userSession.getCurrentUser().getEmail());
             homeRepository.deleteRoomsByUserEmail(userSession.getCurrentUser().getEmail());
         }
         getActiveRooms().clear();
         getActiveRules().clear();
         getActiveSchedules().clear();
+        getActiveScenes().clear();
         getActiveRuleNotifications().clear();
     }
 
@@ -184,6 +192,7 @@ public class SmartHomeSystem {
         }
         removeRulesForRoom(room);
         removeSchedulesForRoom(room);
+        removeScenesForRoom(room);
         boolean removed = getActiveRooms().remove(room);
         if (removed) {
             homeRepository.deleteRoom(roomId);
@@ -257,6 +266,7 @@ public class SmartHomeSystem {
             if (room.removeDevice(deviceId)) {
                 removeRulesForDevice(deviceId);
                 removeSchedulesForDevice(deviceId);
+                removeSceneStatesForDevice(deviceId);
                 homeRepository.deleteDevice(deviceId);
                 return true;
             }
@@ -937,6 +947,142 @@ public class SmartHomeSystem {
     }
 
     /**
+     * Creates and stores a scene for the authenticated owner.
+     *
+     * @param name the scene name
+     * @param deviceStates the device target states
+     * @return the created scene
+     */
+    public Scene createScene(String name, List<SceneDeviceState> deviceStates) {
+        requireOwner();
+        validateSceneDeviceStates(deviceStates);
+        Scene scene = new Scene(UUID.randomUUID().toString(), name, deviceStates);
+        getActiveScenes().add(scene);
+        homeRepository.saveScene(userSession.getCurrentUser().getEmail(), scene);
+        return scene;
+    }
+
+    /**
+     * Updates an existing scene of the authenticated owner.
+     *
+     * @param sceneId the scene id
+     * @param name the new scene name
+     * @param deviceStates the new device target states
+     */
+    public void updateScene(String sceneId, String name, List<SceneDeviceState> deviceStates) {
+        requireOwner();
+        Scene scene = findSceneById(sceneId);
+        if (scene == null) {
+            throw new IllegalArgumentException("Scene not found");
+        }
+        validateSceneDeviceStates(deviceStates);
+        activeScenePreviousStates.remove(scene.getId());
+        scene.update(name, deviceStates);
+        homeRepository.updateScene(scene);
+    }
+
+    /**
+     * Removes a scene of the authenticated owner.
+     *
+     * @param sceneId the scene id
+     * @return {@code true} if the scene was removed
+     */
+    public boolean removeScene(String sceneId) {
+        requireOwner();
+        Scene scene = findSceneById(sceneId);
+        if (scene == null) {
+            return false;
+        }
+
+        boolean removed = getActiveScenes().remove(scene);
+        if (removed) {
+            activeScenePreviousStates.remove(sceneId);
+            homeRepository.deleteScene(sceneId);
+        }
+        return removed;
+    }
+
+    /**
+     * Returns all scenes of the active context.
+     *
+     * @return a defensive copy of the scenes list
+     */
+    public List<Scene> getScenes() {
+        return List.copyOf(getActiveScenes());
+    }
+
+    /**
+     * Finds a scene by id in the active context.
+     *
+     * @param sceneId the scene id
+     * @return the matching scene, or {@code null} if none exists
+     */
+    public Scene findSceneById(String sceneId) {
+        if (sceneId == null || sceneId.isBlank()) {
+            return null;
+        }
+
+        for (Scene scene : getActiveScenes()) {
+            if (scene.getId().equals(sceneId.trim())) {
+                return scene;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Activates all device target states defined by a scene.
+     *
+     * @param sceneId the scene id
+     */
+    public void activateScene(String sceneId) {
+        requireAuthenticatedUser();
+        Scene scene = findSceneById(sceneId);
+        if (scene == null) {
+            throw new IllegalArgumentException("Scene not found");
+        }
+
+        activeScenePreviousStates.put(scene.getId(), captureSceneCurrentStates(scene));
+        for (SceneDeviceState deviceState : scene.getDeviceStates()) {
+            applySceneDeviceState(deviceState, scene.getName());
+        }
+        addSceneNotification(scene, "Scene \"" + scene.getName() + "\" activated successfully.");
+    }
+
+    /**
+     * Deactivates a scene by restoring the device states captured before activation.
+     *
+     * @param sceneId the scene id
+     */
+    public void deactivateScene(String sceneId) {
+        requireAuthenticatedUser();
+        Scene scene = findSceneById(sceneId);
+        if (scene == null) {
+            throw new IllegalArgumentException("Scene not found");
+        }
+
+        List<SceneDeviceState> previousStates = activeScenePreviousStates.remove(scene.getId());
+        if (previousStates == null) {
+            throw new IllegalStateException("Scene is not active");
+        }
+
+        for (SceneDeviceState deviceState : previousStates) {
+            applySceneDeviceState(deviceState, scene.getName());
+        }
+        addSceneNotification(scene, "Scene \"" + scene.getName() + "\" deactivated successfully.");
+    }
+
+    /**
+     * Returns whether the scene is currently active in this system session.
+     *
+     * @param sceneId the scene id
+     * @return {@code true} if the scene can be deactivated
+     */
+    public boolean isSceneActive(String sceneId) {
+        return sceneId != null && activeScenePreviousStates.containsKey(sceneId);
+    }
+
+    /**
      * Executes all time-based rules that are due at the current clock time.
      *
      * @return the number of executed rules
@@ -1146,6 +1292,15 @@ public class SmartHomeSystem {
         return userSchedules.computeIfAbsent(userEmail, homeRepository::findSchedulesByUserEmail);
     }
 
+    private List<Scene> getActiveScenes() {
+        if (!userSession.isLoggedIn()) {
+            return scenes;
+        }
+
+        String userEmail = userSession.getCurrentUser().getEmail();
+        return userScenes.computeIfAbsent(userEmail, homeRepository::findScenesByUserEmail);
+    }
+
     private List<Rule> getActiveRules() {
         if (!userSession.isLoggedIn()) {
             return rules;
@@ -1313,6 +1468,58 @@ public class SmartHomeSystem {
         validateScheduledValue(device.getType(), targetValue);
     }
 
+    private void validateSceneDeviceStates(List<SceneDeviceState> deviceStates) {
+        if (deviceStates == null || deviceStates.isEmpty()) {
+            throw new IllegalArgumentException("Scene must contain at least one device state");
+        }
+
+        Set<String> usedDeviceIds = new HashSet<>();
+        for (SceneDeviceState deviceState : deviceStates) {
+            if (deviceState == null) {
+                throw new IllegalArgumentException("Scene device state must not be null");
+            }
+            String deviceId = deviceState.getDeviceId();
+            if (!usedDeviceIds.add(deviceId)) {
+                throw new IllegalArgumentException("Scene cannot contain the same device twice");
+            }
+            validateAutomationValue(deviceId, deviceState.getTargetValue(), "scene");
+        }
+    }
+
+    private List<SceneDeviceState> captureSceneCurrentStates(Scene scene) {
+        List<SceneDeviceState> currentStates = new ArrayList<>();
+        for (SceneDeviceState deviceState : scene.getDeviceStates()) {
+            Device device = findDeviceById(deviceState.getDeviceId());
+            if (device == null) {
+                throw new IllegalArgumentException("Device not found");
+            }
+            currentStates.add(new SceneDeviceState(device.getId(), readSceneDeviceValue(device)));
+        }
+        return currentStates;
+    }
+
+    private double readSceneDeviceValue(Device device) {
+        if (device.getType() == DeviceType.SWITCH) {
+            return device.isOn() ? 1.0 : 0.0;
+        }
+        return device.getValue();
+    }
+
+    private void applySceneDeviceState(SceneDeviceState deviceState, String sceneName) {
+        Device device = findDeviceById(deviceState.getDeviceId());
+        if (device == null) {
+            throw new IllegalArgumentException("Device not found");
+        }
+
+        String actorName = "Scene: " + sceneName;
+        if (device.getType() == DeviceType.SWITCH) {
+            setSwitchStateInternal(device.getId(), deviceState.getTargetValue() == 1.0, ActivityActorType.USER,
+                    actorName);
+            return;
+        }
+        updateDeviceValueInternal(device.getId(), deviceState.getTargetValue(), ActivityActorType.USER, actorName);
+    }
+
     private void validateScheduledValue(DeviceType deviceType, double targetValue) {
         Device probe = new Device("schedule-validation", "Schedule Validation", deviceType);
         probe.setValue(targetValue);
@@ -1422,6 +1629,16 @@ public class SmartHomeSystem {
         ));
     }
 
+    private void addSceneNotification(Scene scene, String message) {
+        getActiveRuleNotifications().add(new RuleExecutionNotification(
+                Instant.now(clock),
+                scene.getId(),
+                scene.getName(),
+                true,
+                message
+        ));
+    }
+
     private void removeRulesForDevice(String deviceId) {
         List<Rule> rulesToRemove = new ArrayList<>();
         for (Rule rule : getActiveRules()) {
@@ -1487,6 +1704,55 @@ public class SmartHomeSystem {
             getActiveSchedules().remove(schedule);
             if (userSession.isLoggedIn()) {
                 homeRepository.deleteSchedule(schedule.getId());
+            }
+        }
+    }
+
+    private void removeScenesForRoom(Room room) {
+        List<String> roomDeviceIds = new ArrayList<>();
+        for (Device device : room.getDevices()) {
+            roomDeviceIds.add(device.getId());
+        }
+        removeSceneStatesForDevices(roomDeviceIds);
+    }
+
+    private void removeSceneStatesForDevice(String deviceId) {
+        removeSceneStatesForDevices(List.of(deviceId));
+    }
+
+    private void removeSceneStatesForDevices(List<String> deviceIds) {
+        List<Scene> scenesToRemove = new ArrayList<>();
+        for (Scene scene : getActiveScenes()) {
+            List<SceneDeviceState> remainingStates = new ArrayList<>();
+            for (SceneDeviceState deviceState : scene.getDeviceStates()) {
+                if (!deviceIds.contains(deviceState.getDeviceId())) {
+                    remainingStates.add(deviceState);
+                }
+            }
+            updateOrRemoveScene(scene, remainingStates, scenesToRemove);
+        }
+        deleteScenes(scenesToRemove);
+    }
+
+    private void updateOrRemoveScene(Scene scene, List<SceneDeviceState> remainingStates, List<Scene> scenesToRemove) {
+        if (remainingStates.size() == scene.getDeviceStates().size()) {
+            return;
+        }
+        if (remainingStates.isEmpty()) {
+            scenesToRemove.add(scene);
+            return;
+        }
+        scene.update(scene.getName(), remainingStates);
+        if (userSession.isLoggedIn()) {
+            homeRepository.updateScene(scene);
+        }
+    }
+
+    private void deleteScenes(List<Scene> scenesToRemove) {
+        for (Scene scene : scenesToRemove) {
+            getActiveScenes().remove(scene);
+            if (userSession.isLoggedIn()) {
+                homeRepository.deleteScene(scene.getId());
             }
         }
     }
