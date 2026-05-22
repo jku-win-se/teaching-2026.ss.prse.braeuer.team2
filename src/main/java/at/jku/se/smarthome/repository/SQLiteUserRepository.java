@@ -9,6 +9,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * SQLite-backed user repository that persists registered users in a local database.
@@ -94,22 +96,100 @@ public class SQLiteUserRepository implements UserRepository {
         }
     }
 
+    @Override
+    public void saveMemberInvitation(String ownerEmail, String memberEmail) {
+        String sql = """
+                INSERT OR IGNORE INTO household_members(owner_email, member_email)
+                VALUES(?, ?)
+                """;
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, ownerEmail);
+            statement.setString(2, memberEmail);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to save member invitation", exception);
+        }
+    }
+
+    @Override
+    public void deleteMemberInvitation(String ownerEmail, String memberEmail) {
+        String sql = "DELETE FROM household_members WHERE owner_email = ? AND member_email = ?";
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, ownerEmail);
+            statement.setString(2, memberEmail);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete member invitation", exception);
+        }
+    }
+
+    @Override
+    public String findHouseholdOwnerByMemberEmail(String memberEmail) {
+        String sql = "SELECT owner_email FROM household_members WHERE member_email = ?";
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, memberEmail);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return null;
+                }
+                return resultSet.getString("owner_email");
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to query member invitation", exception);
+        }
+    }
+
+    @Override
+    public List<String> findMemberEmailsByOwnerEmail(String ownerEmail) {
+        String sql = "SELECT member_email FROM household_members WHERE owner_email = ? ORDER BY member_email";
+        List<String> memberEmails = new ArrayList<>();
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, ownerEmail);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    memberEmails.add(resultSet.getString("member_email"));
+                }
+            }
+            return memberEmails;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to query household members", exception);
+        }
+    }
+
     private Connection openConnection() throws SQLException {
         return DriverManager.getConnection(databaseUrl);
     }
 
     private void initializeSchema() {
-        String sql = """
+        String createUsersSql = """
                 CREATE TABLE IF NOT EXISTS users (
                     email TEXT PRIMARY KEY,
                     password_hash TEXT NOT NULL,
                     role TEXT NOT NULL DEFAULT 'OWNER'
                 )
                 """;
+        String createHouseholdMembersSql = """
+                CREATE TABLE IF NOT EXISTS household_members (
+                    owner_email TEXT NOT NULL,
+                    member_email TEXT NOT NULL,
+                    PRIMARY KEY(owner_email, member_email),
+                    UNIQUE(member_email),
+                    FOREIGN KEY(owner_email) REFERENCES users(email) ON DELETE CASCADE
+                )
+                """;
 
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {
-            statement.execute(sql);
+            statement.execute(createUsersSql);
+            statement.execute(createHouseholdMembersSql);
             addRoleColumnIfMissing(connection);
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to initialize database schema", exception);

@@ -157,8 +157,8 @@ public class SmartHomeSystem {
     public void clearRooms() {
         requireOwnerIfAuthenticated();
         if (userSession.isLoggedIn()) {
-            homeRepository.deleteScenesByUserEmail(userSession.getCurrentUser().getEmail());
-            homeRepository.deleteRoomsByUserEmail(userSession.getCurrentUser().getEmail());
+            homeRepository.deleteScenesByUserEmail(resolveActiveHomeEmail());
+            homeRepository.deleteRoomsByUserEmail(resolveActiveHomeEmail());
         }
         getActiveRooms().clear();
         getActiveRules().clear();
@@ -177,7 +177,7 @@ public class SmartHomeSystem {
         requireOwner();
         Room room = new Room(UUID.randomUUID().toString(), roomName);
         getActiveRooms().add(room);
-        homeRepository.saveRoom(userSession.getCurrentUser().getEmail(), room);
+        homeRepository.saveRoom(resolveActiveHomeEmail(), room);
         return room;
     }
 
@@ -486,7 +486,7 @@ public class SmartHomeSystem {
         Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
         ensureNoPlanningConflict(rule, null);
         getActiveRules().add(rule);
-        homeRepository.saveRule(userSession.getCurrentUser().getEmail(), rule);
+        homeRepository.saveRule(resolveActiveHomeEmail(), rule);
         return rule;
     }
 
@@ -517,7 +517,7 @@ public class SmartHomeSystem {
         Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
         ensureNoPlanningConflict(rule, null);
         getActiveRules().add(rule);
-        homeRepository.saveRule(userSession.getCurrentUser().getEmail(), rule);
+        homeRepository.saveRule(resolveActiveHomeEmail(), rule);
         return rule;
     }
 
@@ -539,7 +539,7 @@ public class SmartHomeSystem {
         Rule rule = new Rule(UUID.randomUUID().toString(), name, trigger, action);
         ensureNoPlanningConflict(rule, null);
         getActiveRules().add(rule);
-        homeRepository.saveRule(userSession.getCurrentUser().getEmail(), rule);
+        homeRepository.saveRule(resolveActiveHomeEmail(), rule);
         return rule;
     }
 
@@ -866,7 +866,7 @@ public class SmartHomeSystem {
      */
     public Schedule createSchedule(String name, String deviceId, ScheduleActionType actionType, Double targetValue,
                                    LocalTime executionTime, Set<DayOfWeek> recurringDays) {
-        requireAuthenticatedUser();
+        requireOwner();
         validateScheduleTarget(deviceId, actionType, targetValue);
 
         Schedule schedule = new Schedule(
@@ -880,7 +880,7 @@ public class SmartHomeSystem {
         );
         ensureNoPlanningConflict(schedule, null);
         getActiveSchedules().add(schedule);
-        homeRepository.saveSchedule(userSession.getCurrentUser().getEmail(), schedule);
+        homeRepository.saveSchedule(resolveActiveHomeEmail(), schedule);
         return schedule;
     }
 
@@ -896,7 +896,7 @@ public class SmartHomeSystem {
      */
     public void updateSchedule(String scheduleId, String name, ScheduleActionType actionType, Double targetValue,
                                LocalTime executionTime, Set<DayOfWeek> recurringDays) {
-        requireAuthenticatedUser();
+        requireOwner();
         Schedule schedule = findScheduleById(scheduleId);
         if (schedule == null) {
             throw new IllegalArgumentException("Schedule not found");
@@ -924,7 +924,7 @@ public class SmartHomeSystem {
      * @return {@code true} if the schedule was removed
      */
     public boolean removeSchedule(String scheduleId) {
-        requireAuthenticatedUser();
+        requireOwner();
         Schedule schedule = findScheduleById(scheduleId);
         if (schedule == null) {
             return false;
@@ -1015,7 +1015,7 @@ public class SmartHomeSystem {
         validateSceneDeviceStates(deviceStates);
         Scene scene = new Scene(UUID.randomUUID().toString(), name, deviceStates);
         getActiveScenes().add(scene);
-        homeRepository.saveScene(userSession.getCurrentUser().getEmail(), scene);
+        homeRepository.saveScene(resolveActiveHomeEmail(), scene);
         return scene;
     }
 
@@ -1199,8 +1199,49 @@ public class SmartHomeSystem {
             throw new IllegalArgumentException("An account with this email already exists");
         }
 
-        User user = new User(normalizedEmail, PasswordHasher.hash(password), role);
+        UserRole effectiveRole = resolveRegistrationRole(normalizedEmail, role);
+        User user = new User(normalizedEmail, PasswordHasher.hash(password), effectiveRole);
         return userRepository.save(user);
+    }
+
+    /**
+     * Invites a registered or future member to the current owner's household.
+     *
+     * @param memberEmail the invited member email address
+     */
+    public void inviteMember(String memberEmail) {
+        requireOwner();
+        String normalizedMemberEmail = validateEmail(memberEmail);
+        String ownerEmail = userSession.getCurrentUser().getEmail();
+        if (ownerEmail.equals(normalizedMemberEmail)) {
+            throw new IllegalArgumentException("Owners cannot invite themselves");
+        }
+        User existingUser = userRepository.findByEmail(normalizedMemberEmail);
+        if (existingUser != null && existingUser.getRole() == UserRole.OWNER) {
+            throw new IllegalArgumentException("Owners cannot be invited as members");
+        }
+        userRepository.saveMemberInvitation(ownerEmail, normalizedMemberEmail);
+    }
+
+    /**
+     * Revokes a member's access to the current owner's household.
+     *
+     * @param memberEmail the member email address
+     */
+    public void revokeMemberAccess(String memberEmail) {
+        requireOwner();
+        String normalizedMemberEmail = validateEmail(memberEmail);
+        userRepository.deleteMemberInvitation(userSession.getCurrentUser().getEmail(), normalizedMemberEmail);
+    }
+
+    /**
+     * Returns all invited members for the current owner's household.
+     *
+     * @return invited member email addresses
+     */
+    public List<String> getInvitedMemberEmails() {
+        requireOwner();
+        return List.copyOf(userRepository.findMemberEmailsByOwnerEmail(userSession.getCurrentUser().getEmail()));
     }
 
     /**
@@ -1318,7 +1359,7 @@ public class SmartHomeSystem {
             return rooms;
         }
 
-        String userEmail = userSession.getCurrentUser().getEmail();
+        String userEmail = resolveActiveHomeEmail();
         return userRooms.computeIfAbsent(userEmail, homeRepository::findRoomsByUserEmail);
     }
 
@@ -1327,7 +1368,7 @@ public class SmartHomeSystem {
             return activityLog;
         }
 
-        String userEmail = userSession.getCurrentUser().getEmail();
+        String userEmail = resolveActiveHomeEmail();
         return userActivityLog.computeIfAbsent(userEmail, homeRepository::findActivityLogByUserEmail);
     }
 
@@ -1336,7 +1377,7 @@ public class SmartHomeSystem {
             return ruleNotifications;
         }
 
-        String userEmail = userSession.getCurrentUser().getEmail();
+        String userEmail = resolveActiveHomeEmail();
         return userRuleNotifications.computeIfAbsent(userEmail, ignored -> new ArrayList<>());
     }
 
@@ -1345,7 +1386,7 @@ public class SmartHomeSystem {
             return schedules;
         }
 
-        String userEmail = userSession.getCurrentUser().getEmail();
+        String userEmail = resolveActiveHomeEmail();
         return userSchedules.computeIfAbsent(userEmail, homeRepository::findSchedulesByUserEmail);
     }
 
@@ -1354,7 +1395,7 @@ public class SmartHomeSystem {
             return scenes;
         }
 
-        String userEmail = userSession.getCurrentUser().getEmail();
+        String userEmail = resolveActiveHomeEmail();
         return userScenes.computeIfAbsent(userEmail, homeRepository::findScenesByUserEmail);
     }
 
@@ -1363,8 +1404,29 @@ public class SmartHomeSystem {
             return rules;
         }
 
-        String userEmail = userSession.getCurrentUser().getEmail();
+        String userEmail = resolveActiveHomeEmail();
         return userRules.computeIfAbsent(userEmail, homeRepository::findRulesByUserEmail);
+    }
+
+    private UserRole resolveRegistrationRole(String email, UserRole requestedRole) {
+        String householdOwnerEmail = userRepository.findHouseholdOwnerByMemberEmail(email);
+        if (householdOwnerEmail != null) {
+            return UserRole.MEMBER;
+        }
+        return requestedRole;
+    }
+
+    private String resolveActiveHomeEmail() {
+        User currentUser = userSession.getCurrentUser();
+        String currentUserEmail = currentUser.getEmail();
+        if (currentUser.getRole() != UserRole.MEMBER) {
+            return currentUserEmail;
+        }
+        String ownerEmail = userRepository.findHouseholdOwnerByMemberEmail(currentUserEmail);
+        if (ownerEmail == null) {
+            return currentUserEmail;
+        }
+        return ownerEmail;
     }
 
     private List<Rule> collectSimulationRules(Set<String> activeRuleIds) {
@@ -1409,7 +1471,7 @@ public class SmartHomeSystem {
         );
         getActiveActivityLog().add(entry);
         if (userSession.isLoggedIn()) {
-            homeRepository.saveActivityLogEntry(userSession.getCurrentUser().getEmail(), entry);
+            homeRepository.saveActivityLogEntry(resolveActiveHomeEmail(), entry);
         }
     }
 
@@ -1897,7 +1959,7 @@ public class SmartHomeSystem {
             return;
         }
 
-        String userEmail = userSession.getCurrentUser().getEmail();
+        String userEmail = resolveActiveHomeEmail();
         homeRepository.saveRoom(userEmail, room);
         for (Device device : room.getDevices()) {
             homeRepository.saveDevice(room.getId(), device);

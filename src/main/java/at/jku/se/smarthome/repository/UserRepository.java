@@ -2,6 +2,8 @@ package at.jku.se.smarthome.repository;
 
 import at.jku.se.smarthome.model.User;
 
+import java.util.List;
+
 /**
  * Defines persistence operations for registered users.
  */
@@ -28,4 +30,36 @@ public interface UserRepository {
      * @return the number of users
      */
     int count();
+
+    /**
+     * Stores a member invitation for an owner's household.
+     *
+     * @param ownerEmail the owner's email address
+     * @param memberEmail the invited member's email address
+     */
+    void saveMemberInvitation(String ownerEmail, String memberEmail);
+
+    /**
+     * Deletes a member invitation from an owner's household.
+     *
+     * @param ownerEmail the owner's email address
+     * @param memberEmail the member's email address
+     */
+    void deleteMemberInvitation(String ownerEmail, String memberEmail);
+
+    /**
+     * Finds the household owner for an invited member.
+     *
+     * @param memberEmail the member's email address
+     * @return the owner email address, or {@code null} if no active invitation exists
+     */
+    String findHouseholdOwnerByMemberEmail(String memberEmail);
+
+    /**
+     * Lists all invited members of an owner's household.
+     *
+     * @param ownerEmail the owner's email address
+     * @return the invited member email addresses
+     */
+    List<String> findMemberEmailsByOwnerEmail(String ownerEmail);
 }

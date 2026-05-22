@@ -2,9 +2,11 @@ package at.jku.se.smarthome.controller;
 
 import at.jku.se.smarthome.model.SmartHomeSystem;
 import at.jku.se.smarthome.model.User;
+import at.jku.se.smarthome.model.UserRole;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
@@ -13,6 +15,7 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 
+@SuppressWarnings({"PMD.CommentRequired", "PMD.AtLeastOneConstructor"})
 public class AuthController {
 
     private final SmartHomeSystem system = SmartHomeSystem.createPersistentSystem();
@@ -39,6 +42,9 @@ public class AuthController {
     private PasswordField registrationPasswordField;
 
     @FXML
+    private CheckBox registerAsMemberCheckBox;
+
+    @FXML
     private Label registrationFeedbackLabel;
 
     @FXML
@@ -63,11 +69,13 @@ public class AuthController {
     @FXML
     public void handleRegister() {
         try {
-            system.registerUser(registrationEmailField.getText(), registrationPasswordField.getText());
+            system.registerUser(registrationEmailField.getText(), registrationPasswordField.getText(),
+                    resolveRegistrationRole());
             registrationFeedbackLabel.setStyle("-fx-text-fill: #2f7d32;");
             registrationFeedbackLabel.setText("Account created successfully. You can now log in.");
             registrationEmailField.clear();
             registrationPasswordField.clear();
+            registerAsMemberCheckBox.setSelected(false);
             showLogin();
         } catch (IllegalArgumentException exception) {
             registrationFeedbackLabel.setStyle("-fx-text-fill: #b04a2f;");
@@ -105,5 +113,9 @@ public class AuthController {
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to open dashboard", exception);
         }
+    }
+
+    private UserRole resolveRegistrationRole() {
+        return registerAsMemberCheckBox.isSelected() ? UserRole.MEMBER : UserRole.OWNER;
     }
 }

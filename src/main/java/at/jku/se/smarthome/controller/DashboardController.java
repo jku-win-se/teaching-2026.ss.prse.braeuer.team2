@@ -14,6 +14,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
@@ -50,6 +51,12 @@ public class DashboardController {
 
     @FXML
     private Button createDeviceButton;
+
+    @FXML
+    private Button membersNavigationButton;
+
+    @FXML
+    private Button membersHeaderButton;
 
     public void initialize() {
         system = SmartHomeSystem.createPersistentSystem();
@@ -198,6 +205,29 @@ public class DashboardController {
         }
     }
 
+    @FXML
+    public void manageMembers() {
+        if (!system.isCurrentUserOwner()) {
+            showMessage("Members unavailable", "Only owners can invite or revoke members.");
+            return;
+        }
+
+        ChoiceDialog<String> actionDialog = new ChoiceDialog<>("Invite member", "Invite member", "Revoke access");
+        actionDialog.setTitle("Members");
+        actionDialog.setHeaderText("Manage household members");
+        actionDialog.setContentText("Action:");
+
+        Optional<String> selectedAction = actionDialog.showAndWait();
+        if (selectedAction.isEmpty()) {
+            return;
+        }
+        if ("Invite member".equals(selectedAction.get())) {
+            inviteMember();
+            return;
+        }
+        revokeMemberAccess();
+    }
+
     private void refreshDashboard() {
         refreshNotifications();
         refreshRoomOverview();
@@ -208,6 +238,8 @@ public class DashboardController {
         setVisibleAndManaged(rulesNavigationButton, owner);
         setVisibleAndManaged(createRoomButton, owner);
         setVisibleAndManaged(createDeviceButton, owner);
+        setVisibleAndManaged(membersNavigationButton, owner);
+        setVisibleAndManaged(membersHeaderButton, owner);
     }
 
     private void setVisibleAndManaged(Button button, boolean visible) {
@@ -477,6 +509,51 @@ public class DashboardController {
                 showMessage("Device update failed", exception.getMessage());
             }
         }
+    }
+
+    private void inviteMember() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Invite Member");
+        dialog.setHeaderText("Invite member");
+        dialog.setContentText("E-mail:");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            try {
+                system.inviteMember(result.get());
+                showMessage("Member invited", "The member can access this household after registering as a member.");
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                showMessage("Invitation failed", exception.getMessage());
+            }
+        }
+    }
+
+    private void revokeMemberAccess() {
+        List<String> memberEmails = system.getInvitedMemberEmails();
+        if (memberEmails.isEmpty()) {
+            showMessage("No members", "No members have access to this household.");
+            return;
+        }
+
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(memberEmails.get(0), memberEmails);
+        dialog.setTitle("Revoke Member Access");
+        dialog.setHeaderText("Revoke member access");
+        dialog.setContentText("Member:");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent() && confirmRevocation(result.get())) {
+            system.revokeMemberAccess(result.get());
+            showMessage("Access revoked", "The member no longer has access to this household.");
+        }
+    }
+
+    private boolean confirmRevocation(String memberEmail) {
+        Alert alert = new Alert(AlertType.CONFIRMATION);
+        alert.setTitle("Revoke access");
+        alert.setHeaderText("Revoke access for " + memberEmail + "?");
+        alert.setContentText("The member will no longer be able to access this household.");
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 
     private Optional<Room> selectRoom(List<Room> rooms) {
