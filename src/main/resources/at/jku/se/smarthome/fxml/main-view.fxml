@@ -48,6 +48,10 @@
                                 onAction="#openEnergy"
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Simulation"
+                                onAction="#openSimulation"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                     </children>
                 </VBox>
             </children>
