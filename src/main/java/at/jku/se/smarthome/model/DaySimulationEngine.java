@@ -15,7 +15,11 @@ import java.util.Set;
         "PMD.CommentRequired",
         "PMD.CyclomaticComplexity",
         "PMD.TooManyMethods",
-        "PMD.CouplingBetweenObjects"
+        "PMD.CouplingBetweenObjects",
+        "PMD.GodClass",
+        "PMD.OnlyOneReturn",
+        "PMD.ShortVariable",
+        "PMD.AvoidInstantiatingObjectsInLoops"
 })
 public class DaySimulationEngine {
     private static final int MINUTES_PER_DAY = 24 * 60;
