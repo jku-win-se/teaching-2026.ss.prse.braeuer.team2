@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.PasswordField?>
 <?import javafx.scene.control.TextField?>
@@ -35,6 +36,10 @@
                                promptText="Passwort"
                                maxWidth="320"
                                style="-fx-background-radius: 10; -fx-padding: 12;" />
+                <CheckBox fx:id="registerAsMemberCheckBox"
+                          text="Als Mitglied registrieren"
+                          maxWidth="320"
+                          style="-fx-text-fill: #6e6257;" />
                 <Button text="Register"
                         onAction="#handleRegister"
                         maxWidth="320"

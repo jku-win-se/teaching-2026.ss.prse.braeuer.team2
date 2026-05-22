@@ -52,6 +52,11 @@
                                 onAction="#openSimulation"
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Members"
+                                fx:id="membersNavigationButton"
+                                onAction="#manageMembers"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                     </children>
                 </VBox>
             </children>
@@ -76,6 +81,10 @@
                         <Button text="+ Device"
                                 fx:id="createDeviceButton"
                                 onAction="#createDevice"
+                                style="-fx-background-color: #e3ded7; -fx-text-fill: #2b2b2b; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
+                        <Button text="Members"
+                                fx:id="membersHeaderButton"
+                                onAction="#manageMembers"
                                 style="-fx-background-color: #e3ded7; -fx-text-fill: #2b2b2b; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
                     </children>
                 </HBox>
