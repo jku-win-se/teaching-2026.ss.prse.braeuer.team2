@@ -986,6 +986,24 @@ public class SmartHomeSystem {
     }
 
     /**
+     * Simulates one complete day on copied rooms, devices, rules and schedules.
+     *
+     * @param request the simulation start conditions
+     * @return all simulated state changes and the final simulated device states
+     */
+    public DaySimulationResult simulateDay(DaySimulationRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Simulation request must not be null");
+        }
+        DaySimulationEngine simulationEngine = new DaySimulationEngine(
+                getActiveRooms(),
+                collectSimulationRules(request.getActiveRuleIds()),
+                getActiveSchedules()
+        );
+        return simulationEngine.simulate(request);
+    }
+
+    /**
      * Creates and stores a scene for the authenticated owner.
      *
      * @param name the scene name
@@ -1347,6 +1365,16 @@ public class SmartHomeSystem {
 
         String userEmail = userSession.getCurrentUser().getEmail();
         return userRules.computeIfAbsent(userEmail, homeRepository::findRulesByUserEmail);
+    }
+
+    private List<Rule> collectSimulationRules(Set<String> activeRuleIds) {
+        List<Rule> selectedRules = new ArrayList<>();
+        for (Rule rule : getActiveRules()) {
+            if (activeRuleIds.contains(rule.getId())) {
+                selectedRules.add(rule);
+            }
+        }
+        return selectedRules;
     }
 
     private void requireAuthenticatedUser() {
