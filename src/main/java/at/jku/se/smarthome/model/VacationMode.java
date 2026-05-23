@@ -22,23 +22,31 @@ public class VacationMode {
      * @param enabled whether the mode is enabled
      */
     public VacationMode(String scheduleId, LocalDateTime startAt, LocalDateTime endAt, boolean enabled) {
+        this.scheduleId = validateScheduleId(scheduleId);
+        this.startAt = normalizeDateTime(startAt, "Vacation start must not be null");
+        this.endAt = normalizeDateTime(endAt, "Vacation end must not be null");
+        validateDateRange(this.startAt, this.endAt);
+        this.enabled = enabled;
+    }
+
+    private static String validateScheduleId(String scheduleId) {
         if (scheduleId == null || scheduleId.isBlank()) {
             throw new IllegalArgumentException("Vacation schedule must not be empty");
         }
-        if (startAt == null) {
-            throw new IllegalArgumentException("Vacation start must not be null");
+        return scheduleId.trim();
+    }
+
+    private static LocalDateTime normalizeDateTime(LocalDateTime dateTime, String nullMessage) {
+        if (dateTime == null) {
+            throw new IllegalArgumentException(nullMessage);
         }
-        if (endAt == null) {
-            throw new IllegalArgumentException("Vacation end must not be null");
-        }
+        return dateTime.withSecond(0).withNano(0);
+    }
+
+    private static void validateDateRange(LocalDateTime startAt, LocalDateTime endAt) {
         if (!endAt.isAfter(startAt)) {
             throw new IllegalArgumentException("Vacation end must be after vacation start");
         }
-
-        this.scheduleId = scheduleId.trim();
-        this.startAt = startAt.withSecond(0).withNano(0);
-        this.endAt = endAt.withSecond(0).withNano(0);
-        this.enabled = enabled;
     }
 
     public String getScheduleId() {
