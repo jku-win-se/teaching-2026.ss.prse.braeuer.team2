@@ -6,6 +6,7 @@ import at.jku.se.smarthome.model.ActivityLogEntry;
 import at.jku.se.smarthome.model.Rule;
 import at.jku.se.smarthome.model.Schedule;
 import at.jku.se.smarthome.model.Scene;
+import at.jku.se.smarthome.model.VacationMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +39,11 @@ public class InMemoryHomeRepository implements HomeRepository {
     @Override
     public List<Scene> findScenesByUserEmail(String userEmail) {
         return new ArrayList<>();
+    }
+
+    @Override
+    public VacationMode findVacationModeByUserEmail(String userEmail) {
+        return null;
     }
 
     @Override
@@ -81,6 +87,10 @@ public class InMemoryHomeRepository implements HomeRepository {
     }
 
     @Override
+    public void saveVacationMode(String userEmail, VacationMode vacationMode) {
+    }
+
+    @Override
     public void updateRule(Rule rule) {
     }
 
@@ -106,6 +116,10 @@ public class InMemoryHomeRepository implements HomeRepository {
 
     @Override
     public void deleteScenesByUserEmail(String userEmail) {
+    }
+
+    @Override
+    public void deleteVacationModeByUserEmail(String userEmail) {
     }
 
     @Override

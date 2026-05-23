@@ -46,12 +46,14 @@ public class SmartHomeSystem {
     private final List<Rule> rules;
     private final List<Schedule> schedules;
     private final List<Scene> scenes;
+    private VacationMode vacationMode;
     private final Map<String, List<Room>> userRooms;
     private final Map<String, List<ActivityLogEntry>> userActivityLog;
     private final Map<String, List<RuleExecutionNotification>> userRuleNotifications;
     private final Map<String, List<Rule>> userRules;
     private final Map<String, List<Schedule>> userSchedules;
     private final Map<String, List<Scene>> userScenes;
+    private final Map<String, VacationMode> userVacationModes;
     private final Map<String, List<SceneDeviceState>> activeScenePreviousStates;
     private final Set<String> executingRuleIds;
     private final UserRepository userRepository;
@@ -110,12 +112,14 @@ public class SmartHomeSystem {
         this.rules = new ArrayList<>();
         this.schedules = new ArrayList<>();
         this.scenes = new ArrayList<>();
+        this.vacationMode = null;
         this.userRooms = new HashMap<>();
         this.userActivityLog = new HashMap<>();
         this.userRuleNotifications = new HashMap<>();
         this.userRules = new HashMap<>();
         this.userSchedules = new HashMap<>();
         this.userScenes = new HashMap<>();
+        this.userVacationModes = new HashMap<>();
         this.activeScenePreviousStates = new HashMap<>();
         this.executingRuleIds = new HashSet<>();
         this.userRepository = userRepository;
@@ -933,6 +937,7 @@ public class SmartHomeSystem {
         boolean removed = getActiveSchedules().remove(schedule);
         if (removed) {
             homeRepository.deleteSchedule(scheduleId);
+            clearVacationModeIfScheduleSelected(scheduleId);
         }
         return removed;
     }
@@ -966,16 +971,85 @@ public class SmartHomeSystem {
     }
 
     /**
+     * Enables vacation mode for a fixed time range and selected existing schedule.
+     *
+     * @param scheduleId the schedule to apply during vacation mode
+     * @param startAt the start timestamp
+     * @param endAt the end timestamp
+     * @return the stored vacation mode
+     */
+    public VacationMode activateVacationMode(String scheduleId, LocalDateTime startAt, LocalDateTime endAt) {
+        requireAuthenticatedUser();
+        Schedule schedule = findScheduleById(scheduleId);
+        if (schedule == null) {
+            throw new IllegalArgumentException("Vacation schedule not found");
+        }
+
+        VacationMode newVacationMode = new VacationMode(schedule.getId(), startAt, endAt, true);
+        setActiveVacationMode(newVacationMode);
+        if (userSession.isLoggedIn()) {
+            homeRepository.saveVacationMode(resolveActiveHomeEmail(), newVacationMode);
+        }
+        return newVacationMode;
+    }
+
+    /**
+     * Deactivates the configured vacation mode.
+     */
+    public void deactivateVacationMode() {
+        requireAuthenticatedUser();
+        setActiveVacationMode(null);
+        if (userSession.isLoggedIn()) {
+            homeRepository.deleteVacationModeByUserEmail(resolveActiveHomeEmail());
+        }
+    }
+
+    /**
+     * Returns the configured vacation mode.
+     *
+     * @return the vacation mode, or {@code null} if none is configured
+     */
+    public VacationMode getVacationMode() {
+        return getActiveVacationMode();
+    }
+
+    /**
+     * Returns whether vacation mode is active at the current clock time.
+     *
+     * @return {@code true} if vacation mode currently overrides normal schedules
+     */
+    public boolean isVacationModeActive() {
+        VacationMode activeVacationMode = getActiveVacationMode();
+        return activeVacationMode != null && activeVacationMode.isActiveAt(currentDateTime());
+    }
+
+    /**
+     * Returns whether the configured vacation mode has already ended.
+     *
+     * @return {@code true} if vacation mode exists but is expired
+     */
+    public boolean isVacationModeExpired() {
+        VacationMode activeVacationMode = getActiveVacationMode();
+        return activeVacationMode != null && activeVacationMode.isExpiredAt(currentDateTime());
+    }
+
+    /**
      * Executes all schedules that are due at the current clock time.
      *
      * @return the number of executed schedules
      */
     public int executeDueSchedules() {
-        LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), clock.getZone());
+        LocalDateTime now = currentDateTime();
         int executedCount = 0;
+        VacationMode activeVacationMode = getActiveVacationMode();
+        boolean vacationModeApplies = activeVacationMode != null && activeVacationMode.isActiveAt(now);
 
         for (Schedule schedule : getActiveSchedules()) {
             if (!schedule.isDue(now.toLocalDate(), now.toLocalTime())) {
+                continue;
+            }
+            if (vacationModeApplies && !schedule.getId().equals(activeVacationMode.getScheduleId())) {
+                markScheduleOverridden(schedule, now.toLocalDate());
                 continue;
             }
 
@@ -1399,6 +1473,27 @@ public class SmartHomeSystem {
         return userScenes.computeIfAbsent(userEmail, homeRepository::findScenesByUserEmail);
     }
 
+    private VacationMode getActiveVacationMode() {
+        if (!userSession.isLoggedIn()) {
+            return vacationMode;
+        }
+
+        String userEmail = resolveActiveHomeEmail();
+        if (!userVacationModes.containsKey(userEmail)) {
+            userVacationModes.put(userEmail, homeRepository.findVacationModeByUserEmail(userEmail));
+        }
+        return userVacationModes.get(userEmail);
+    }
+
+    private void setActiveVacationMode(VacationMode newVacationMode) {
+        if (!userSession.isLoggedIn()) {
+            vacationMode = newVacationMode;
+            return;
+        }
+
+        userVacationModes.put(resolveActiveHomeEmail(), newVacationMode);
+    }
+
     private List<Rule> getActiveRules() {
         if (!userSession.isLoggedIn()) {
             return rules;
@@ -1712,6 +1807,17 @@ public class SmartHomeSystem {
         }
     }
 
+    private void markScheduleOverridden(Schedule schedule, LocalDate executionDate) {
+        schedule.markExecuted(executionDate);
+        if (userSession.isLoggedIn()) {
+            homeRepository.updateSchedule(schedule);
+        }
+    }
+
+    private LocalDateTime currentDateTime() {
+        return LocalDateTime.ofInstant(clock.instant(), clock.getZone());
+    }
+
     private void evaluateRulesAfterDeviceChange(Device changedDevice, String previousState, String newState) {
         if (previousState.equals(newState)) {
             return;
@@ -1873,6 +1979,18 @@ public class SmartHomeSystem {
             if (userSession.isLoggedIn()) {
                 homeRepository.deleteSchedule(schedule.getId());
             }
+            clearVacationModeIfScheduleSelected(schedule.getId());
+        }
+    }
+
+    private void clearVacationModeIfScheduleSelected(String scheduleId) {
+        VacationMode activeVacationMode = getActiveVacationMode();
+        if (activeVacationMode == null || !activeVacationMode.getScheduleId().equals(scheduleId)) {
+            return;
+        }
+        setActiveVacationMode(null);
+        if (userSession.isLoggedIn()) {
+            homeRepository.deleteVacationModeByUserEmail(resolveActiveHomeEmail());
         }
     }
 

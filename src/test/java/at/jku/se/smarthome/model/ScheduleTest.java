@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -217,6 +218,137 @@ public class ScheduleTest {
         Assert.assertEquals(LocalTime.of(7, 0), persistedSchedule.getExecutionTime());
         Assert.assertEquals(Set.of(DayOfWeek.WEDNESDAY), persistedSchedule.getRecurringDays());
         Assert.assertEquals(LocalDate.of(2026, 4, 29), persistedSchedule.getLastExecutedOn());
+    }
+
+    @Test
+    public void vacationModeOverridesNormalDueSchedulesWithSelectedSchedule() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-04-27T06:00:00Z"), ZoneOffset.UTC);
+        SmartHomeSystem system = new SmartHomeSystem(
+                new InMemoryUserRepository(),
+                new InMemoryHomeRepository(),
+                clock
+        );
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+        Device lamp = system.createDevice(room.getId(), "Lamp", DeviceType.SWITCH);
+        Device dimmer = system.createDevice(room.getId(), "Dimmer", DeviceType.DIMMER);
+        Schedule normalSchedule = system.createSchedule(
+                "Normal Morning",
+                lamp.getId(),
+                ScheduleActionType.SET_VALUE,
+                1.0,
+                LocalTime.of(6, 0),
+                Set.of(DayOfWeek.MONDAY)
+        );
+        Schedule vacationSchedule = system.createSchedule(
+                "Vacation Morning",
+                dimmer.getId(),
+                ScheduleActionType.SET_VALUE,
+                30.0,
+                LocalTime.of(6, 0),
+                Set.of(DayOfWeek.MONDAY)
+        );
+
+        system.activateVacationMode(
+                vacationSchedule.getId(),
+                LocalDateTime.of(2026, 4, 27, 0, 0),
+                LocalDateTime.of(2026, 4, 28, 0, 0)
+        );
+
+        Assert.assertTrue(system.isVacationModeActive());
+        Assert.assertEquals(1, system.executeDueSchedules());
+        Assert.assertFalse(lamp.isOn());
+        Assert.assertEquals(30.0, dimmer.getValue(), 0.0001);
+        Assert.assertEquals(LocalDate.of(2026, 4, 27), normalSchedule.getLastExecutedOn());
+        Assert.assertEquals(LocalDate.of(2026, 4, 27), vacationSchedule.getLastExecutedOn());
+    }
+
+    @Test
+    public void normalSchedulesAreUsedAgainAfterVacationModeEnds() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-04-27T06:00:00Z"), ZoneOffset.UTC);
+        SmartHomeSystem system = new SmartHomeSystem(
+                new InMemoryUserRepository(),
+                new InMemoryHomeRepository(),
+                clock
+        );
+        system.registerUser("owner@example.com", "password123");
+        system.loginUser("owner@example.com", "password123");
+        Room room = system.createRoom("Living Room");
+        Device lamp = system.createDevice(room.getId(), "Lamp", DeviceType.SWITCH);
+        Device dimmer = system.createDevice(room.getId(), "Dimmer", DeviceType.DIMMER);
+        system.createSchedule(
+                "Normal Morning",
+                lamp.getId(),
+                ScheduleActionType.SET_VALUE,
+                1.0,
+                LocalTime.of(6, 0),
+                Set.of(DayOfWeek.MONDAY)
+        );
+        Schedule vacationSchedule = system.createSchedule(
+                "Vacation Morning",
+                dimmer.getId(),
+                ScheduleActionType.SET_VALUE,
+                30.0,
+                LocalTime.of(6, 0),
+                Set.of(DayOfWeek.MONDAY)
+        );
+        system.activateVacationMode(
+                vacationSchedule.getId(),
+                LocalDateTime.of(2026, 4, 27, 0, 0),
+                LocalDateTime.of(2026, 4, 28, 0, 0)
+        );
+        system.executeDueSchedules();
+
+        clock.setInstant(Instant.parse("2026-05-04T06:00:00Z"));
+
+        Assert.assertFalse(system.isVacationModeActive());
+        Assert.assertTrue(system.isVacationModeExpired());
+        Assert.assertEquals(2, system.executeDueSchedules());
+        Assert.assertTrue(lamp.isOn());
+        Assert.assertEquals(30.0, dimmer.getValue(), 0.0001);
+    }
+
+    @Test
+    public void vacationModeIsLoadedAgainAfterRestart() throws IOException {
+        java.nio.file.Path databaseFile = java.nio.file.Files.createTempFile("smarthome-vacation", ".db");
+        databaseFile.toFile().deleteOnExit();
+        String databaseUrl = "jdbc:sqlite:" + databaseFile;
+
+        SmartHomeSystem firstSystem = new SmartHomeSystem(
+                new SQLiteUserRepository(databaseUrl),
+                new SQLiteHomeRepository(databaseUrl),
+                Clock.fixed(Instant.parse("2026-04-27T06:00:00Z"), ZoneOffset.UTC)
+        );
+        firstSystem.registerUser("owner@example.com", "password123");
+        firstSystem.loginUser("owner@example.com", "password123");
+        Room room = firstSystem.createRoom("Living Room");
+        Device lamp = firstSystem.createDevice(room.getId(), "Lamp", DeviceType.SWITCH);
+        Schedule schedule = firstSystem.createSchedule(
+                "Vacation Morning",
+                lamp.getId(),
+                ScheduleActionType.SET_VALUE,
+                1.0,
+                LocalTime.of(6, 0),
+                Set.of(DayOfWeek.MONDAY)
+        );
+        firstSystem.activateVacationMode(
+                schedule.getId(),
+                LocalDateTime.of(2026, 4, 27, 0, 0),
+                LocalDateTime.of(2026, 4, 30, 0, 0)
+        );
+        firstSystem.logoutUser();
+
+        SmartHomeSystem secondSystem = new SmartHomeSystem(
+                new SQLiteUserRepository(databaseUrl),
+                new SQLiteHomeRepository(databaseUrl),
+                Clock.fixed(Instant.parse("2026-04-28T06:00:00Z"), ZoneOffset.UTC)
+        );
+        secondSystem.loginUser("owner@example.com", "password123");
+
+        Assert.assertNotNull(secondSystem.getVacationMode());
+        Assert.assertEquals(schedule.getId(), secondSystem.getVacationMode().getScheduleId());
+        Assert.assertTrue(secondSystem.isVacationModeActive());
     }
 
     private static final class MutableClock extends Clock {
