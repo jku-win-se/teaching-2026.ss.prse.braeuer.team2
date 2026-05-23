@@ -15,6 +15,7 @@ import at.jku.se.smarthome.model.ScheduleActionType;
 import at.jku.se.smarthome.model.Scene;
 import at.jku.se.smarthome.model.SceneDeviceState;
 import at.jku.se.smarthome.model.ThresholdOperator;
+import at.jku.se.smarthome.model.VacationMode;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -25,6 +26,7 @@ import java.sql.Statement;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -227,6 +229,34 @@ public class SQLiteHomeRepository implements HomeRepository {
     }
 
     @Override
+    public VacationMode findVacationModeByUserEmail(String userEmail) {
+        String sql = """
+                SELECT schedule_id, start_at, end_at, enabled
+                FROM vacation_modes
+                WHERE user_email = ?
+                """;
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userEmail);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return null;
+                }
+                return new VacationMode(
+                        resultSet.getString("schedule_id"),
+                        LocalDateTime.parse(resultSet.getString("start_at")),
+                        LocalDateTime.parse(resultSet.getString("end_at")),
+                        resultSet.getInt("enabled") == 1
+                );
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to query vacation mode", exception);
+        }
+    }
+
+    @Override
     public void saveRoom(String userEmail, Room room) {
         String sql = "INSERT INTO rooms(id, user_email, name) VALUES(?, ?, ?)";
 
@@ -396,6 +426,31 @@ public class SQLiteHomeRepository implements HomeRepository {
     }
 
     @Override
+    public void saveVacationMode(String userEmail, VacationMode vacationMode) {
+        String sql = """
+                INSERT INTO vacation_modes(user_email, schedule_id, start_at, end_at, enabled)
+                VALUES(?, ?, ?, ?, ?)
+                ON CONFLICT(user_email) DO UPDATE SET
+                    schedule_id = excluded.schedule_id,
+                    start_at = excluded.start_at,
+                    end_at = excluded.end_at,
+                    enabled = excluded.enabled
+                """;
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userEmail);
+            statement.setString(2, vacationMode.getScheduleId());
+            statement.setString(3, vacationMode.getStartAt().toString());
+            statement.setString(4, vacationMode.getEndAt().toString());
+            statement.setInt(5, vacationMode.isEnabled() ? 1 : 0);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to save vacation mode", exception);
+        }
+    }
+
+    @Override
     public void updateRule(Rule rule) {
         String sql = """
                 UPDATE rules
@@ -519,6 +574,19 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to delete user scenes", exception);
+        }
+    }
+
+    @Override
+    public void deleteVacationModeByUserEmail(String userEmail) {
+        String sql = "DELETE FROM vacation_modes WHERE user_email = ?";
+
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userEmail);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete vacation mode", exception);
         }
     }
 
@@ -827,6 +895,17 @@ public class SQLiteHomeRepository implements HomeRepository {
                     FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
                 )
                 """;
+        String createVacationModesSql = """
+                CREATE TABLE IF NOT EXISTS vacation_modes (
+                    user_email TEXT PRIMARY KEY,
+                    schedule_id TEXT NOT NULL,
+                    start_at TEXT NOT NULL,
+                    end_at TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    FOREIGN KEY(user_email) REFERENCES users(email) ON DELETE CASCADE,
+                    FOREIGN KEY(schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
+                )
+                """;
 
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {
@@ -837,6 +916,7 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.execute(createRulesSql);
             statement.execute(createScenesSql);
             statement.execute(createSceneDeviceStatesSql);
+            statement.execute(createVacationModesSql);
             ensureActivityLogColumns(connection);
             ensureRuleColumns(connection);
         } catch (SQLException exception) {

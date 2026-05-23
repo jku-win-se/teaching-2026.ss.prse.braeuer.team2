@@ -6,6 +6,7 @@ import at.jku.se.smarthome.model.ActivityLogEntry;
 import at.jku.se.smarthome.model.Rule;
 import at.jku.se.smarthome.model.Schedule;
 import at.jku.se.smarthome.model.Scene;
+import at.jku.se.smarthome.model.VacationMode;
 
 import java.util.List;
 
@@ -53,6 +54,14 @@ public interface HomeRepository {
      * @return the stored scenes for the user
      */
     List<Scene> findScenesByUserEmail(String userEmail);
+
+    /**
+     * Loads the configured vacation mode for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @return the stored vacation mode, or {@code null} if none exists
+     */
+    VacationMode findVacationModeByUserEmail(String userEmail);
 
     /**
      * Stores a room for the given user.
@@ -130,6 +139,14 @@ public interface HomeRepository {
     void saveScene(String userEmail, Scene scene);
 
     /**
+     * Stores or replaces the vacation mode for the given user.
+     *
+     * @param userEmail the owning user's email address
+     * @param vacationMode the vacation mode to store
+     */
+    void saveVacationMode(String userEmail, VacationMode vacationMode);
+
+    /**
      * Updates a stored rule.
      *
      * @param rule the rule to update
@@ -178,6 +195,13 @@ public interface HomeRepository {
      * @param userEmail the owning user's email address
      */
     void deleteScenesByUserEmail(String userEmail);
+
+    /**
+     * Deletes the vacation mode for the given user.
+     *
+     * @param userEmail the owning user's email address
+     */
+    void deleteVacationModeByUserEmail(String userEmail);
 
     /**
      * Deletes a stored device.
