@@ -44,16 +44,10 @@ public class DashboardController {
     private VBox notificationContainer;
 
     @FXML
-    private Button rulesNavigationButton;
-
-    @FXML
     private Button createRoomButton;
 
     @FXML
     private Button createDeviceButton;
-
-    @FXML
-    private Button membersNavigationButton;
 
     @FXML
     private Button membersHeaderButton;
@@ -235,10 +229,8 @@ public class DashboardController {
 
     private void configureRoleAccess() {
         boolean owner = system.isCurrentUserOwner();
-        setVisibleAndManaged(rulesNavigationButton, owner);
         setVisibleAndManaged(createRoomButton, owner);
         setVisibleAndManaged(createDeviceButton, owner);
-        setVisibleAndManaged(membersNavigationButton, owner);
         setVisibleAndManaged(membersHeaderButton, owner);
     }
 
