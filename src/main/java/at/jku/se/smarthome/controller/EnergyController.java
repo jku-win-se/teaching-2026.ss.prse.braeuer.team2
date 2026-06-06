@@ -96,6 +96,11 @@ public class EnergyController {
     }
 
     @FXML
+    public void openSimulation() {
+        navigateTo("/at/jku/se/smarthome/fxml/simulation-view.fxml", "Failed to open simulation view");
+    }
+
+    @FXML
     public void logout() {
         system.logoutUser();
         openAuthView();

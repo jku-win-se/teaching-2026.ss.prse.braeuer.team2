@@ -104,6 +104,24 @@ public class SimulationController {
     }
 
     @FXML
+    public void openScenes() {
+        stopPlayback();
+        navigateTo("/at/jku/se/smarthome/fxml/scenes-view.fxml", 1000, 600, "Failed to open scenes view");
+    }
+
+    @FXML
+    public void openActivity() {
+        stopPlayback();
+        navigateTo("/at/jku/se/smarthome/fxml/activity-view.fxml", 1000, 600, "Failed to open activity view");
+    }
+
+    @FXML
+    public void openEnergy() {
+        stopPlayback();
+        navigateTo("/at/jku/se/smarthome/fxml/energy-view.fxml", 1000, 600, "Failed to open energy view");
+    }
+
+    @FXML
     public void logout() {
         stopPlayback();
         system.logoutUser();

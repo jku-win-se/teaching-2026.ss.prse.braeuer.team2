@@ -121,6 +121,11 @@ public class ScheduleController {
     }
 
     @FXML
+    public void openSimulation() {
+        navigateTo("/at/jku/se/smarthome/fxml/simulation-view.fxml", 1000, 600, "Failed to open simulation view");
+    }
+
+    @FXML
     public void logout() {
         stopSchedulePolling();
         system.logoutUser();
