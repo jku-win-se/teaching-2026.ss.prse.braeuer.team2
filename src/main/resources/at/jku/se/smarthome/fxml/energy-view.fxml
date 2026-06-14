@@ -37,6 +37,10 @@
                                 onAction="#openSchedules"
                                 prefWidth="150"
                                 style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Vacation Mode"
+                                onAction="#openVacationMode"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Scenes"
                                 onAction="#openScenes"
                                 prefWidth="150"

@@ -1,13 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.scene.control.Button?>
-<?import javafx.scene.control.ComboBox?>
-<?import javafx.scene.control.DatePicker?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ScrollPane?>
-<?import javafx.scene.control.Spinner?>
 <?import javafx.scene.layout.BorderPane?>
-<?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
@@ -39,6 +35,10 @@
                         <Button text="Schedules"
                                 prefWidth="150"
                                 style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
+                        <Button text="Vacation Mode"
+                                onAction="#openVacationMode"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
                         <Button text="Scenes"
                                 onAction="#openScenes"
                                 prefWidth="150"
@@ -80,65 +80,6 @@
 
                 <VBox spacing="14">
                     <children>
-                        <Label text="Vacation Mode"
-                               style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
-                        <VBox spacing="10"
-                              style="-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 12 14 12 14;">
-                            <children>
-                                <Label fx:id="vacationStatusLabel"
-                                       text="Vacation mode inactive"
-                                       style="-fx-text-fill: #2b2b2b;" />
-                                <GridPane hgap="8" vgap="8">
-                                    <children>
-                                        <Label text="Schedule" GridPane.columnIndex="0" GridPane.rowIndex="0" />
-                                        <ComboBox fx:id="vacationScheduleBox"
-                                                  prefWidth="180"
-                                                  promptText="Schedule"
-                                                  GridPane.columnIndex="1"
-                                                  GridPane.rowIndex="0" />
-                                        <Label text="Start" GridPane.columnIndex="0" GridPane.rowIndex="1" />
-                                        <DatePicker fx:id="vacationStartDatePicker"
-                                                    prefWidth="130"
-                                                    GridPane.columnIndex="1"
-                                                    GridPane.rowIndex="1" />
-                                        <Spinner fx:id="vacationStartHourSpinner"
-                                                 prefWidth="70"
-                                                 GridPane.columnIndex="2"
-                                                 GridPane.rowIndex="1" />
-                                        <Label text=":" GridPane.columnIndex="3" GridPane.rowIndex="1" />
-                                        <Spinner fx:id="vacationStartMinuteSpinner"
-                                                 prefWidth="70"
-                                                 GridPane.columnIndex="4"
-                                                 GridPane.rowIndex="1" />
-                                        <Label text="End" GridPane.columnIndex="0" GridPane.rowIndex="2" />
-                                        <DatePicker fx:id="vacationEndDatePicker"
-                                                    prefWidth="130"
-                                                    GridPane.columnIndex="1"
-                                                    GridPane.rowIndex="2" />
-                                        <Spinner fx:id="vacationEndHourSpinner"
-                                                 prefWidth="70"
-                                                 GridPane.columnIndex="2"
-                                                 GridPane.rowIndex="2" />
-                                        <Label text=":" GridPane.columnIndex="3" GridPane.rowIndex="2" />
-                                        <Spinner fx:id="vacationEndMinuteSpinner"
-                                                 prefWidth="70"
-                                                 GridPane.columnIndex="4"
-                                                 GridPane.rowIndex="2" />
-                                        <Button text="Activate"
-                                                onAction="#activateVacationMode"
-                                                style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 8 14 8 14;"
-                                                GridPane.columnIndex="5"
-                                                GridPane.rowIndex="1" />
-                                        <Button text="Deactivate"
-                                                onAction="#deactivateVacationMode"
-                                                style="-fx-background-color: #e3ded7; -fx-text-fill: #2b2b2b; -fx-background-radius: 10; -fx-padding: 8 14 8 14;"
-                                                GridPane.columnIndex="5"
-                                                GridPane.rowIndex="2" />
-                                    </children>
-                                </GridPane>
-                            </children>
-                        </VBox>
-
                         <Label text="Recurring Time Schedules"
                                style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
 

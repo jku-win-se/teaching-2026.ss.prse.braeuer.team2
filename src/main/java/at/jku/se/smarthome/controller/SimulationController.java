@@ -104,6 +104,13 @@ public class SimulationController {
     }
 
     @FXML
+    public void openVacationMode() {
+        stopPlayback();
+        navigateTo("/at/jku/se/smarthome/fxml/vacation-mode-view.fxml", 1000, 600,
+                "Failed to open vacation mode view");
+    }
+
+    @FXML
     public void openScenes() {
         stopPlayback();
         navigateTo("/at/jku/se/smarthome/fxml/scenes-view.fxml", 1000, 600, "Failed to open scenes view");

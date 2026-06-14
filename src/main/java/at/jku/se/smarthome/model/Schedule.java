@@ -26,6 +26,7 @@ public class Schedule {
     private LocalTime executionTime;
     private Set<DayOfWeek> recurringDays;
     private LocalDate lastExecutedOn;
+    private final boolean vacationSchedule;
 
     /**
      * Creates a schedule definition.
@@ -40,6 +41,23 @@ public class Schedule {
      */
     public Schedule(String id, String name, String deviceId, ScheduleActionType actionType, Double targetValue,
                     LocalTime executionTime, Set<DayOfWeek> recurringDays) {
+        this(id, name, deviceId, actionType, targetValue, executionTime, recurringDays, false);
+    }
+
+    /**
+     * Creates a schedule definition.
+     *
+     * @param id the schedule id
+     * @param name the display name
+     * @param deviceId the target device id
+     * @param actionType the action to execute
+     * @param targetValue the optional numeric target value
+     * @param executionTime the time of day when the schedule becomes due
+     * @param recurringDays the weekdays on which the schedule repeats
+     * @param vacationSchedule whether this schedule belongs to vacation mode
+     */
+    public Schedule(String id, String name, String deviceId, ScheduleActionType actionType, Double targetValue,
+                    LocalTime executionTime, Set<DayOfWeek> recurringDays, boolean vacationSchedule) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Schedule id must not be empty");
         }
@@ -49,6 +67,7 @@ public class Schedule {
 
         this.id = id.trim();
         this.deviceId = deviceId.trim();
+        this.vacationSchedule = vacationSchedule;
         applyUpdate(name, actionType, targetValue, executionTime, recurringDays);
     }
 
@@ -82,6 +101,10 @@ public class Schedule {
 
     public LocalDate getLastExecutedOn() {
         return lastExecutedOn;
+    }
+
+    public boolean isVacationSchedule() {
+        return vacationSchedule;
     }
 
     /**

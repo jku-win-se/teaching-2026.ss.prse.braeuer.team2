@@ -1,14 +1,17 @@
 package at.jku.se.smarthome.model;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Defines a temporary vacation mode that lets one schedule override normal schedules.
+ * Defines a temporary vacation mode that lets selected schedules override normal schedules.
  */
 @SuppressWarnings({"PMD.DataClass", "PMD.CommentRequired"})
 public class VacationMode {
-    private final String scheduleId;
+    private final Set<String> scheduleIds;
     private final LocalDateTime startAt;
     private final LocalDateTime endAt;
     private final boolean enabled;
@@ -22,18 +25,40 @@ public class VacationMode {
      * @param enabled whether the mode is enabled
      */
     public VacationMode(String scheduleId, LocalDateTime startAt, LocalDateTime endAt, boolean enabled) {
-        this.scheduleId = validateScheduleId(scheduleId);
+        this(Set.of(scheduleId), startAt, endAt, enabled);
+    }
+
+    /**
+     * Creates a vacation mode configuration.
+     *
+     * @param scheduleIds the selected schedule ids
+     * @param startAt the start timestamp
+     * @param endAt the end timestamp
+     * @param enabled whether the mode is enabled
+     */
+    public VacationMode(Set<String> scheduleIds, LocalDateTime startAt, LocalDateTime endAt, boolean enabled) {
+        this.scheduleIds = validateScheduleIds(scheduleIds);
         this.startAt = normalizeDateTime(startAt, "Vacation start must not be null");
         this.endAt = normalizeDateTime(endAt, "Vacation end must not be null");
         validateDateRange(this.startAt, this.endAt);
         this.enabled = enabled;
     }
 
-    private static String validateScheduleId(String scheduleId) {
-        if (scheduleId == null || scheduleId.isBlank()) {
-            throw new IllegalArgumentException("Vacation schedule must not be empty");
+    private static Set<String> validateScheduleIds(Set<String> scheduleIds) {
+        if (scheduleIds == null || scheduleIds.isEmpty()) {
+            throw new IllegalArgumentException("Vacation schedules must not be empty");
         }
-        return scheduleId.trim();
+        Set<String> normalizedScheduleIds = new LinkedHashSet<>();
+        for (String scheduleId : scheduleIds) {
+            if (scheduleId == null || scheduleId.isBlank()) {
+                throw new IllegalArgumentException("Vacation schedule must not be empty");
+            }
+            normalizedScheduleIds.add(scheduleId.trim());
+        }
+        if (normalizedScheduleIds.isEmpty()) {
+            throw new IllegalArgumentException("Vacation schedules must not be empty");
+        }
+        return Collections.unmodifiableSet(normalizedScheduleIds);
     }
 
     private static LocalDateTime normalizeDateTime(LocalDateTime dateTime, String nullMessage) {
@@ -50,7 +75,15 @@ public class VacationMode {
     }
 
     public String getScheduleId() {
-        return scheduleId;
+        return scheduleIds.iterator().next();
+    }
+
+    public Set<String> getScheduleIds() {
+        return scheduleIds;
+    }
+
+    public boolean containsSchedule(String scheduleId) {
+        return scheduleId != null && scheduleIds.contains(scheduleId.trim());
     }
 
     public LocalDateTime getStartAt() {

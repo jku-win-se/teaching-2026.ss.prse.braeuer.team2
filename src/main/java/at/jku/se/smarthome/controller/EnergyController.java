@@ -86,6 +86,11 @@ public class EnergyController {
     }
 
     @FXML
+    public void openVacationMode() {
+        navigateTo("/at/jku/se/smarthome/fxml/vacation-mode-view.fxml", "Failed to open vacation mode view");
+    }
+
+    @FXML
     public void openScenes() {
         navigateTo("/at/jku/se/smarthome/fxml/scenes-view.fxml", "Failed to open scenes view");
     }

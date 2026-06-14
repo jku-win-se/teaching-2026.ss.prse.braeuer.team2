@@ -150,6 +150,21 @@ public class DashboardController {
     }
 
     @FXML
+    public void openVacationMode() {
+        try {
+            stopSchedulePolling();
+            FXMLLoader loader = new FXMLLoader(
+                    DashboardController.class.getResource("/at/jku/se/smarthome/fxml/vacation-mode-view.fxml")
+            );
+            Scene scene = new Scene(loader.load(), 1000, 600);
+            Stage stage = (Stage) roomListContainer.getScene().getWindow();
+            stage.setScene(scene);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to open vacation mode view", exception);
+        }
+    }
+
+    @FXML
     public void openRules() {
         if (!system.isCurrentUserOwner()) {
             showMessage("Rules unavailable", "Members can control devices, but cannot manage rules.");
