@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -699,6 +700,13 @@ public class SmartHomeSystem {
         }
     }
 
+    private void ensureNoVacationPlanningConflict(Schedule candidateSchedule, String excludedScheduleId) {
+        String conflictMessage = findVacationScheduleConflict(candidateSchedule, excludedScheduleId);
+        if (conflictMessage != null) {
+            throw new PlanningConflictException(conflictMessage);
+        }
+    }
+
     private String findRuleConflict(Rule candidateRule, String excludedRuleId) {
         String conflictMessage = null;
         for (Rule existingRule : getActiveRules()) {
@@ -719,6 +727,9 @@ public class SmartHomeSystem {
     private String findScheduleConflict(Schedule candidateSchedule, String excludedScheduleId) {
         String conflictMessage = null;
         for (Schedule existingSchedule : getActiveSchedules()) {
+            if (existingSchedule.isVacationSchedule()) {
+                continue;
+            }
             if (existingSchedule.getId().equals(excludedScheduleId)) {
                 continue;
             }
@@ -733,9 +744,27 @@ public class SmartHomeSystem {
         return conflictMessage;
     }
 
+    private String findVacationScheduleConflict(Schedule candidateSchedule, String excludedScheduleId) {
+        for (Schedule existingSchedule : getActiveSchedules()) {
+            if (!existingSchedule.isVacationSchedule()) {
+                continue;
+            }
+            if (existingSchedule.getId().equals(excludedScheduleId)) {
+                continue;
+            }
+            if (schedulesConflict(candidateSchedule, existingSchedule)) {
+                return describeScheduleConflict(candidateSchedule, existingSchedule);
+            }
+        }
+        return null;
+    }
+
     private String findRuleScheduleConflict(Rule candidateRule) {
         String conflictMessage = null;
         for (Schedule schedule : getActiveSchedules()) {
+            if (schedule.isVacationSchedule()) {
+                continue;
+            }
             if (ruleConflictsWithSchedule(candidateRule, schedule)) {
                 conflictMessage = describeRuleScheduleConflict(candidateRule, schedule);
                 break;
@@ -871,21 +900,51 @@ public class SmartHomeSystem {
     public Schedule createSchedule(String name, String deviceId, ScheduleActionType actionType, Double targetValue,
                                    LocalTime executionTime, Set<DayOfWeek> recurringDays) {
         requireOwner();
-        validateScheduleTarget(deviceId, actionType, targetValue);
+        Schedule schedule = createScheduleDefinition(name, deviceId, actionType, targetValue, executionTime,
+                recurringDays, false);
+        ensureNoPlanningConflict(schedule, null);
+        getActiveSchedules().add(schedule);
+        homeRepository.saveSchedule(resolveActiveHomeEmail(), schedule);
+        return schedule;
+    }
 
-        Schedule schedule = new Schedule(
+    /**
+     * Creates and stores a vacation-mode schedule for the authenticated user.
+     *
+     * @param name the schedule name
+     * @param deviceId the target device id
+     * @param actionType the action to execute
+     * @param targetValue the optional numeric target value
+     * @param executionTime the time of day
+     * @param recurringDays the repeating weekdays
+     * @return the created vacation schedule
+     */
+    public Schedule createVacationSchedule(String name, String deviceId, ScheduleActionType actionType,
+                                           Double targetValue, LocalTime executionTime,
+                                           Set<DayOfWeek> recurringDays) {
+        requireOwner();
+        Schedule schedule = createScheduleDefinition(name, deviceId, actionType, targetValue, executionTime,
+                recurringDays, true);
+        ensureNoVacationPlanningConflict(schedule, null);
+        getActiveSchedules().add(schedule);
+        homeRepository.saveSchedule(resolveActiveHomeEmail(), schedule);
+        return schedule;
+    }
+
+    private Schedule createScheduleDefinition(String name, String deviceId, ScheduleActionType actionType,
+                                              Double targetValue, LocalTime executionTime,
+                                              Set<DayOfWeek> recurringDays, boolean vacationSchedule) {
+        validateScheduleTarget(deviceId, actionType, targetValue);
+        return new Schedule(
                 UUID.randomUUID().toString(),
                 name,
                 deviceId,
                 actionType,
                 targetValue,
                 executionTime,
-                recurringDays
+                recurringDays,
+                vacationSchedule
         );
-        ensureNoPlanningConflict(schedule, null);
-        getActiveSchedules().add(schedule);
-        homeRepository.saveSchedule(resolveActiveHomeEmail(), schedule);
-        return schedule;
     }
 
     /**
@@ -914,9 +973,14 @@ public class SmartHomeSystem {
                 actionType,
                 targetValue,
                 executionTime,
-                recurringDays
+                recurringDays,
+                schedule.isVacationSchedule()
         );
-        ensureNoPlanningConflict(updatedSchedule, schedule.getId());
+        if (schedule.isVacationSchedule()) {
+            ensureNoVacationPlanningConflict(updatedSchedule, schedule.getId());
+        } else {
+            ensureNoPlanningConflict(updatedSchedule, schedule.getId());
+        }
         schedule.update(name, actionType, targetValue, executionTime, recurringDays);
         homeRepository.updateSchedule(schedule);
     }
@@ -948,7 +1012,28 @@ public class SmartHomeSystem {
      * @return a defensive copy of the schedules list
      */
     public List<Schedule> getSchedules() {
-        return List.copyOf(getActiveSchedules());
+        List<Schedule> normalSchedules = new ArrayList<>();
+        for (Schedule schedule : getActiveSchedules()) {
+            if (!schedule.isVacationSchedule()) {
+                normalSchedules.add(schedule);
+            }
+        }
+        return List.copyOf(normalSchedules);
+    }
+
+    /**
+     * Returns all vacation schedules of the active context.
+     *
+     * @return a defensive copy of the vacation schedules list
+     */
+    public List<Schedule> getVacationSchedules() {
+        List<Schedule> vacationSchedules = new ArrayList<>();
+        for (Schedule schedule : getActiveSchedules()) {
+            if (schedule.isVacationSchedule()) {
+                vacationSchedules.add(schedule);
+            }
+        }
+        return List.copyOf(vacationSchedules);
     }
 
     /**
@@ -979,13 +1064,38 @@ public class SmartHomeSystem {
      * @return the stored vacation mode
      */
     public VacationMode activateVacationMode(String scheduleId, LocalDateTime startAt, LocalDateTime endAt) {
-        requireAuthenticatedUser();
-        Schedule schedule = findScheduleById(scheduleId);
-        if (schedule == null) {
-            throw new IllegalArgumentException("Vacation schedule not found");
+        return activateVacationMode(Set.of(scheduleId), startAt, endAt);
+    }
+
+    /**
+     * Enables vacation mode for a fixed time range and selected existing schedules.
+     *
+     * @param scheduleIds the schedules to apply during vacation mode
+     * @param startAt the start timestamp
+     * @param endAt the end timestamp
+     * @return the stored vacation mode
+     */
+    public VacationMode activateVacationMode(Set<String> scheduleIds, LocalDateTime startAt, LocalDateTime endAt) {
+        requireOwner();
+        if (scheduleIds == null || scheduleIds.isEmpty()) {
+            throw new IllegalArgumentException("Vacation schedules must not be empty");
+        }
+        Set<String> validScheduleIds = new LinkedHashSet<>();
+        for (String scheduleId : scheduleIds) {
+            Schedule schedule = findScheduleById(scheduleId);
+            if (schedule == null) {
+                throw new IllegalArgumentException("Vacation schedule not found");
+            }
+            if (!schedule.isVacationSchedule()) {
+                throw new IllegalArgumentException("Vacation mode can only use vacation schedules");
+            }
+            validScheduleIds.add(schedule.getId());
+        }
+        if (endAt != null && !endAt.isAfter(currentDateTime())) {
+            throw new IllegalArgumentException("Vacation end must be in the future");
         }
 
-        VacationMode newVacationMode = new VacationMode(schedule.getId(), startAt, endAt, true);
+        VacationMode newVacationMode = new VacationMode(validScheduleIds, startAt, endAt, true);
         setActiveVacationMode(newVacationMode);
         if (userSession.isLoggedIn()) {
             homeRepository.saveVacationMode(resolveActiveHomeEmail(), newVacationMode);
@@ -997,7 +1107,7 @@ public class SmartHomeSystem {
      * Deactivates the configured vacation mode.
      */
     public void deactivateVacationMode() {
-        requireAuthenticatedUser();
+        requireOwner();
         setActiveVacationMode(null);
         if (userSession.isLoggedIn()) {
             homeRepository.deleteVacationModeByUserEmail(resolveActiveHomeEmail());
@@ -1010,6 +1120,7 @@ public class SmartHomeSystem {
      * @return the vacation mode, or {@code null} if none is configured
      */
     public VacationMode getVacationMode() {
+        deactivateVacationModeIfExpired(currentDateTime());
         return getActiveVacationMode();
     }
 
@@ -1019,6 +1130,7 @@ public class SmartHomeSystem {
      * @return {@code true} if vacation mode currently overrides normal schedules
      */
     public boolean isVacationModeActive() {
+        deactivateVacationModeIfExpired(currentDateTime());
         VacationMode activeVacationMode = getActiveVacationMode();
         return activeVacationMode != null && activeVacationMode.isActiveAt(currentDateTime());
     }
@@ -1029,6 +1141,7 @@ public class SmartHomeSystem {
      * @return {@code true} if vacation mode exists but is expired
      */
     public boolean isVacationModeExpired() {
+        deactivateVacationModeIfExpired(currentDateTime());
         VacationMode activeVacationMode = getActiveVacationMode();
         return activeVacationMode != null && activeVacationMode.isExpiredAt(currentDateTime());
     }
@@ -1040,15 +1153,23 @@ public class SmartHomeSystem {
      */
     public int executeDueSchedules() {
         LocalDateTime now = currentDateTime();
+        deactivateVacationModeIfExpired(now);
         int executedCount = 0;
         VacationMode activeVacationMode = getActiveVacationMode();
         boolean vacationModeApplies = activeVacationMode != null && activeVacationMode.isActiveAt(now);
 
         for (Schedule schedule : getActiveSchedules()) {
+            if (schedule.isVacationSchedule() && !vacationModeApplies) {
+                continue;
+            }
             if (!schedule.isDue(now.toLocalDate(), now.toLocalTime())) {
                 continue;
             }
-            if (vacationModeApplies && !schedule.getId().equals(activeVacationMode.getScheduleId())) {
+            if (vacationModeApplies && schedule.isVacationSchedule()
+                    && !activeVacationMode.containsSchedule(schedule.getId())) {
+                continue;
+            }
+            if (vacationModeApplies && !schedule.isVacationSchedule()) {
                 markScheduleOverridden(schedule, now.toLocalDate());
                 continue;
             }
@@ -1492,6 +1613,17 @@ public class SmartHomeSystem {
         }
 
         userVacationModes.put(resolveActiveHomeEmail(), newVacationMode);
+    }
+
+    private void deactivateVacationModeIfExpired(LocalDateTime timestamp) {
+        VacationMode activeVacationMode = getActiveVacationMode();
+        if (activeVacationMode == null || !activeVacationMode.isExpiredAt(timestamp)) {
+            return;
+        }
+        setActiveVacationMode(null);
+        if (userSession.isLoggedIn()) {
+            homeRepository.deleteVacationModeByUserEmail(resolveActiveHomeEmail());
+        }
     }
 
     private List<Rule> getActiveRules() {
@@ -1985,9 +2117,25 @@ public class SmartHomeSystem {
 
     private void clearVacationModeIfScheduleSelected(String scheduleId) {
         VacationMode activeVacationMode = getActiveVacationMode();
-        if (activeVacationMode == null || !activeVacationMode.getScheduleId().equals(scheduleId)) {
+        if (activeVacationMode == null || !activeVacationMode.containsSchedule(scheduleId)) {
             return;
         }
+        Set<String> remainingScheduleIds = new LinkedHashSet<>(activeVacationMode.getScheduleIds());
+        remainingScheduleIds.remove(scheduleId);
+        if (!remainingScheduleIds.isEmpty()) {
+            VacationMode updatedVacationMode = new VacationMode(
+                    remainingScheduleIds,
+                    activeVacationMode.getStartAt(),
+                    activeVacationMode.getEndAt(),
+                    activeVacationMode.isEnabled()
+            );
+            setActiveVacationMode(updatedVacationMode);
+            if (userSession.isLoggedIn()) {
+                homeRepository.saveVacationMode(resolveActiveHomeEmail(), updatedVacationMode);
+            }
+            return;
+        }
+
         setActiveVacationMode(null);
         if (userSession.isLoggedIn()) {
             homeRepository.deleteVacationModeByUserEmail(resolveActiveHomeEmail());

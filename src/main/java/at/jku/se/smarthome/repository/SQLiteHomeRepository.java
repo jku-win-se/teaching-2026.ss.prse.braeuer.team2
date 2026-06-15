@@ -136,7 +136,8 @@ public class SQLiteHomeRepository implements HomeRepository {
     @Override
     public List<Schedule> findSchedulesByUserEmail(String userEmail) {
         String sql = """
-                SELECT id, name, device_id, action_type, target_value, execution_time, recurring_days, last_executed_on
+                SELECT id, name, device_id, action_type, target_value, execution_time, recurring_days,
+                       vacation_schedule, last_executed_on
                 FROM schedules
                 WHERE user_email = ?
                 ORDER BY name, id
@@ -231,7 +232,7 @@ public class SQLiteHomeRepository implements HomeRepository {
     @Override
     public VacationMode findVacationModeByUserEmail(String userEmail) {
         String sql = """
-                SELECT schedule_id, start_at, end_at, enabled
+                SELECT schedule_id, schedule_ids, start_at, end_at, enabled
                 FROM vacation_modes
                 WHERE user_email = ?
                 """;
@@ -244,8 +245,12 @@ public class SQLiteHomeRepository implements HomeRepository {
                 if (!resultSet.next()) {
                     return null;
                 }
+                Set<String> scheduleIds = parseVacationScheduleIds(
+                        resultSet.getString("schedule_ids"),
+                        resultSet.getString("schedule_id")
+                );
                 return new VacationMode(
-                        resultSet.getString("schedule_id"),
+                        scheduleIds,
                         LocalDateTime.parse(resultSet.getString("start_at")),
                         LocalDateTime.parse(resultSet.getString("end_at")),
                         resultSet.getInt("enabled") == 1
@@ -350,9 +355,10 @@ public class SQLiteHomeRepository implements HomeRepository {
     public void saveSchedule(String userEmail, Schedule schedule) {
         String sql = """
                 INSERT INTO schedules(
-                    id, user_email, name, device_id, action_type, target_value, execution_time, recurring_days, last_executed_on
+                    id, user_email, name, device_id, action_type, target_value, execution_time, recurring_days,
+                    vacation_schedule, last_executed_on
                 )
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection connection = openConnection();
@@ -368,7 +374,8 @@ public class SQLiteHomeRepository implements HomeRepository {
     public void updateSchedule(Schedule schedule) {
         String sql = """
                 UPDATE schedules
-                SET name = ?, action_type = ?, target_value = ?, execution_time = ?, recurring_days = ?, last_executed_on = ?
+                SET name = ?, action_type = ?, target_value = ?, execution_time = ?, recurring_days = ?,
+                    vacation_schedule = ?, last_executed_on = ?
                 WHERE id = ?
                 """;
 
@@ -379,8 +386,9 @@ public class SQLiteHomeRepository implements HomeRepository {
             setNullableDouble(statement, 3, schedule.getTargetValue());
             statement.setString(4, schedule.getExecutionTime().toString());
             statement.setString(5, serializeRecurringDays(schedule.getRecurringDays()));
-            setNullableString(statement, 6, schedule.getLastExecutedOn() == null ? null : schedule.getLastExecutedOn().toString());
-            statement.setString(7, schedule.getId());
+            statement.setInt(6, schedule.isVacationSchedule() ? 1 : 0);
+            setNullableString(statement, 7, schedule.getLastExecutedOn() == null ? null : schedule.getLastExecutedOn().toString());
+            statement.setString(8, schedule.getId());
             statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to update schedule", exception);
@@ -428,22 +436,24 @@ public class SQLiteHomeRepository implements HomeRepository {
     @Override
     public void saveVacationMode(String userEmail, VacationMode vacationMode) {
         String sql = """
-                INSERT INTO vacation_modes(user_email, schedule_id, start_at, end_at, enabled)
-                VALUES(?, ?, ?, ?, ?)
+                INSERT INTO vacation_modes(user_email, schedule_id, schedule_ids, start_at, end_at, enabled)
+                VALUES(?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_email) DO UPDATE SET
                     schedule_id = excluded.schedule_id,
+                    schedule_ids = excluded.schedule_ids,
                     start_at = excluded.start_at,
                     end_at = excluded.end_at,
                     enabled = excluded.enabled
                 """;
 
         try (Connection connection = openConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+            PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, userEmail);
             statement.setString(2, vacationMode.getScheduleId());
-            statement.setString(3, vacationMode.getStartAt().toString());
-            statement.setString(4, vacationMode.getEndAt().toString());
-            statement.setInt(5, vacationMode.isEnabled() ? 1 : 0);
+            statement.setString(3, serializeVacationScheduleIds(vacationMode.getScheduleIds()));
+            statement.setString(4, vacationMode.getStartAt().toString());
+            statement.setString(5, vacationMode.getEndAt().toString());
+            statement.setInt(6, vacationMode.isEnabled() ? 1 : 0);
             statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to save vacation mode", exception);
@@ -662,7 +672,8 @@ public class SQLiteHomeRepository implements HomeRepository {
                 ScheduleActionType.valueOf(resultSet.getString("action_type")),
                 readNullableDouble(resultSet, "target_value"),
                 LocalTime.parse(resultSet.getString("execution_time")),
-                parseRecurringDays(resultSet.getString("recurring_days"))
+                parseRecurringDays(resultSet.getString("recurring_days")),
+                resultSet.getInt("vacation_schedule") == 1
         );
 
         String lastExecutedOn = resultSet.getString("last_executed_on");
@@ -703,7 +714,8 @@ public class SQLiteHomeRepository implements HomeRepository {
         setNullableDouble(statement, 6, schedule.getTargetValue());
         statement.setString(7, schedule.getExecutionTime().toString());
         statement.setString(8, serializeRecurringDays(schedule.getRecurringDays()));
-        setNullableString(statement, 9, schedule.getLastExecutedOn() == null ? null : schedule.getLastExecutedOn().toString());
+        statement.setInt(9, schedule.isVacationSchedule() ? 1 : 0);
+        setNullableString(statement, 10, schedule.getLastExecutedOn() == null ? null : schedule.getLastExecutedOn().toString());
     }
 
     private void bindRule(PreparedStatement statement, String userEmail, Rule rule) throws SQLException {
@@ -738,6 +750,25 @@ public class SQLiteHomeRepository implements HomeRepository {
 
     private String serializeLocalDate(LocalDate localDate) {
         return localDate == null ? null : localDate.toString();
+    }
+
+    private String serializeVacationScheduleIds(Set<String> scheduleIds) {
+        return String.join(",", scheduleIds);
+    }
+
+    private Set<String> parseVacationScheduleIds(String serializedScheduleIds, String fallbackScheduleId) {
+        Set<String> scheduleIds = new java.util.LinkedHashSet<>();
+        if (serializedScheduleIds != null && !serializedScheduleIds.isBlank()) {
+            for (String scheduleId : serializedScheduleIds.split(",")) {
+                if (!scheduleId.isBlank()) {
+                    scheduleIds.add(scheduleId.trim());
+                }
+            }
+        }
+        if (scheduleIds.isEmpty() && fallbackScheduleId != null && !fallbackScheduleId.isBlank()) {
+            scheduleIds.add(fallbackScheduleId.trim());
+        }
+        return scheduleIds;
     }
 
     private ThresholdOperator parseThresholdOperator(String thresholdOperator) {
@@ -853,6 +884,7 @@ public class SQLiteHomeRepository implements HomeRepository {
                     target_value REAL,
                     execution_time TEXT NOT NULL,
                     recurring_days TEXT NOT NULL,
+                    vacation_schedule INTEGER NOT NULL DEFAULT 0,
                     last_executed_on TEXT,
                     FOREIGN KEY(user_email) REFERENCES users(email) ON DELETE CASCADE,
                     FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
@@ -899,6 +931,7 @@ public class SQLiteHomeRepository implements HomeRepository {
                 CREATE TABLE IF NOT EXISTS vacation_modes (
                     user_email TEXT PRIMARY KEY,
                     schedule_id TEXT NOT NULL,
+                    schedule_ids TEXT,
                     start_at TEXT NOT NULL,
                     end_at TEXT NOT NULL,
                     enabled INTEGER NOT NULL,
@@ -919,8 +952,44 @@ public class SQLiteHomeRepository implements HomeRepository {
             statement.execute(createVacationModesSql);
             ensureActivityLogColumns(connection);
             ensureRuleColumns(connection);
+            ensureScheduleColumns(connection);
+            ensureVacationModeColumns(connection);
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to initialize home schema", exception);
+        }
+    }
+
+    private void ensureScheduleColumns(Connection connection) throws SQLException {
+        List<String> scheduleColumns = new ArrayList<>();
+
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("PRAGMA table_info(schedules)")) {
+            while (resultSet.next()) {
+                scheduleColumns.add(resultSet.getString("name"));
+            }
+        }
+
+        try (Statement statement = connection.createStatement()) {
+            if (!scheduleColumns.contains("vacation_schedule")) {
+                statement.execute("ALTER TABLE schedules ADD COLUMN vacation_schedule INTEGER NOT NULL DEFAULT 0");
+            }
+        }
+    }
+
+    private void ensureVacationModeColumns(Connection connection) throws SQLException {
+        List<String> vacationModeColumns = new ArrayList<>();
+
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("PRAGMA table_info(vacation_modes)")) {
+            while (resultSet.next()) {
+                vacationModeColumns.add(resultSet.getString("name"));
+            }
+        }
+
+        try (Statement statement = connection.createStatement()) {
+            if (!vacationModeColumns.contains("schedule_ids")) {
+                statement.execute("ALTER TABLE vacation_modes ADD COLUMN schedule_ids TEXT");
+            }
         }
     }
 

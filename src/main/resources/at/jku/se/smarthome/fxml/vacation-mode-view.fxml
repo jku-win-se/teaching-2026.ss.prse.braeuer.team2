@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="at.jku.se.smarthome.controller.VacationModeController"
+            prefWidth="1100"
+            prefHeight="700"
+            style="-fx-background-color: #f7f5f2;">
+
+    <left>
+        <VBox spacing="18"
+              prefWidth="200"
+              style="-fx-background-color: #f0ede8; -fx-padding: 24;">
+            <children>
+                <Label text="homeE"
+                       style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
+
+                <VBox spacing="10">
+                    <children>
+                        <Button text="Dashboard"
+                                onAction="#openDashboard"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Rules"
+                                onAction="#openRules"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Schedules"
+                                onAction="#openSchedules"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Vacation Mode"
+                                prefWidth="150"
+                                style="-fx-background-color: #e3ded7; -fx-background-radius: 10; -fx-text-fill: #2b2b2b;" />
+                        <Button text="Scenes"
+                                onAction="#openScenes"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Activity"
+                                onAction="#openActivity"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Energy"
+                                onAction="#openEnergy"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                        <Button text="Simulation"
+                                onAction="#openSimulation"
+                                prefWidth="150"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                    </children>
+                </VBox>
+            </children>
+        </VBox>
+    </left>
+
+    <center>
+        <VBox spacing="14" style="-fx-padding: 24 28 24 28;">
+            <children>
+                <HBox>
+                    <children>
+                        <Label text="Vacation Mode"
+                               style="-fx-font-size: 28; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
+                        <Region HBox.hgrow="ALWAYS" />
+                        <Button text="Logout"
+                                onAction="#logout"
+                                style="-fx-background-color: transparent; -fx-text-fill: #6e6257;" />
+                    </children>
+                </HBox>
+
+                <HBox spacing="14">
+                    <children>
+                        <VBox spacing="10"
+                              prefWidth="300"
+                              style="-fx-background-color: white; -fx-background-radius: 10; -fx-padding: 16 18 16 18;">
+                            <children>
+                                <Label text="Status"
+                                       style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
+                                <Label fx:id="statusLabel"
+                                       text="Inactive"
+                                       style="-fx-font-size: 26; -fx-font-weight: bold; -fx-text-fill: #2b2b2b;" />
+                                <Label fx:id="periodLabel"
+                                       text="Normal daily schedules are used."
+                                       wrapText="true"
+                                       style="-fx-text-fill: #6e6257;" />
+                            </children>
+                        </VBox>
+
+                        <VBox spacing="10"
+                              HBox.hgrow="ALWAYS"
+                              style="-fx-background-color: white; -fx-background-radius: 10; -fx-padding: 16 18 16 18;">
+                            <children>
+                                <HBox>
+                                    <children>
+                                        <Label fx:id="selectedScheduleLabel"
+                                               text="No vacation schedules configured"
+                                               style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
+                                        <Region HBox.hgrow="ALWAYS" />
+                                    </children>
+                                </HBox>
+                                <ScrollPane fitToWidth="true"
+                                            prefViewportHeight="150"
+                                            style="-fx-background-color: transparent; -fx-background: transparent;">
+                                    <content>
+                                        <VBox fx:id="selectedScheduleContainer"
+                                              spacing="6"
+                                              style="-fx-padding: 2;" />
+                                    </content>
+                                </ScrollPane>
+                            </children>
+                        </VBox>
+
+                        <VBox spacing="10"
+                              prefWidth="390"
+                              style="-fx-background-color: white; -fx-background-radius: 10; -fx-padding: 16 18 16 18;">
+                            <children>
+                                <Label text="Configuration"
+                                       style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
+                                <GridPane hgap="8" vgap="8">
+                                    <children>
+                                        <Label text="Start" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+                                        <DatePicker fx:id="vacationStartDatePicker"
+                                                    prefWidth="132"
+                                                    GridPane.columnIndex="1"
+                                                    GridPane.rowIndex="0" />
+                                        <Spinner fx:id="vacationStartHourSpinner"
+                                                 prefWidth="58"
+                                                 GridPane.columnIndex="2"
+                                                 GridPane.rowIndex="0" />
+                                        <Label text=":" GridPane.columnIndex="3" GridPane.rowIndex="0" />
+                                        <Spinner fx:id="vacationStartMinuteSpinner"
+                                                 prefWidth="58"
+                                                 GridPane.columnIndex="4"
+                                                 GridPane.rowIndex="0" />
+
+                                        <Label text="End" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+                                        <DatePicker fx:id="vacationEndDatePicker"
+                                                    prefWidth="132"
+                                                    GridPane.columnIndex="1"
+                                                    GridPane.rowIndex="1" />
+                                        <Spinner fx:id="vacationEndHourSpinner"
+                                                 prefWidth="58"
+                                                 GridPane.columnIndex="2"
+                                                 GridPane.rowIndex="1" />
+                                        <Label text=":" GridPane.columnIndex="3" GridPane.rowIndex="1" />
+                                        <Spinner fx:id="vacationEndMinuteSpinner"
+                                                 prefWidth="58"
+                                                 GridPane.columnIndex="4"
+                                                 GridPane.rowIndex="1" />
+                                    </children>
+                                </GridPane>
+
+                                <HBox spacing="10">
+                                    <children>
+                                        <Button fx:id="activateButton"
+                                                text="Activate"
+                                                onAction="#activateVacationMode"
+                                                style="-fx-background-color: #e8752e; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
+                                        <Button fx:id="deactivateButton"
+                                                text="Deactivate"
+                                                onAction="#deactivateVacationMode"
+                                                style="-fx-background-color: #e3ded7; -fx-text-fill: #2b2b2b; -fx-background-radius: 10; -fx-padding: 10 18 10 18;" />
+                                    </children>
+                                </HBox>
+                            </children>
+                        </VBox>
+                    </children>
+                </HBox>
+
+                <HBox spacing="14">
+                    <children>
+                        <VBox spacing="12"
+                              HBox.hgrow="ALWAYS"
+                              style="-fx-background-color: white; -fx-background-radius: 10; -fx-padding: 16 18 16 18;">
+                            <children>
+                                <Label text="Vacation Mode Rooms And Devices"
+                                       style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
+                                <ScrollPane fitToWidth="true"
+                                            prefViewportHeight="360"
+                                            style="-fx-background-color: transparent; -fx-background: transparent;">
+                                    <content>
+                                        <VBox fx:id="roomScheduleContainer"
+                                              spacing="10"
+                                              style="-fx-padding: 2;" />
+                                    </content>
+                                </ScrollPane>
+                            </children>
+                        </VBox>
+
+                        <VBox spacing="12"
+                              prefWidth="300"
+                              style="-fx-background-color: white; -fx-background-radius: 10; -fx-padding: 16 18 16 18;">
+                            <children>
+                                <Label text="Interrupted Schedules"
+                                       style="-fx-font-size: 18; -fx-text-fill: #6e6257;" />
+                                <ScrollPane fitToWidth="true"
+                                            prefViewportHeight="360"
+                                            style="-fx-background-color: transparent; -fx-background: transparent;">
+                                    <content>
+                                        <VBox fx:id="interruptedScheduleContainer"
+                                              spacing="8"
+                                              style="-fx-padding: 2;" />
+                                    </content>
+                                </ScrollPane>
+                            </children>
+                        </VBox>
+                    </children>
+                </HBox>
+            </children>
+        </VBox>
+    </center>
+</BorderPane>

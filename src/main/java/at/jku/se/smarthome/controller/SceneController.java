@@ -71,6 +71,11 @@ public class SceneController {
     }
 
     @FXML
+    public void openVacationMode() {
+        navigateTo("/at/jku/se/smarthome/fxml/vacation-mode-view.fxml", "Failed to open vacation mode view");
+    }
+
+    @FXML
     public void openActivity() {
         navigateTo("/at/jku/se/smarthome/fxml/activity-view.fxml", "Failed to open activity view");
     }

@@ -56,6 +56,37 @@ public class PlanningConflictTest {
     }
 
     @Test
+    public void vacationScheduleCanOverrideConflictingNormalSchedule() {
+        SmartHomeSystem system = createLoggedInOwnerSystem();
+        Device lamp = createSwitch(system);
+        system.createSchedule("Normal on", lamp.getId(), ScheduleActionType.SET_VALUE, 1.0,
+                LocalTime.of(7, 0), Set.of(DayOfWeek.MONDAY));
+
+        system.createVacationSchedule("Vacation off", lamp.getId(), ScheduleActionType.SET_VALUE, 0.0,
+                LocalTime.of(7, 0), Set.of(DayOfWeek.MONDAY));
+
+        assertEquals(1, system.getSchedules().size());
+        assertEquals(1, system.getVacationSchedules().size());
+    }
+
+    @Test
+    public void conflictingVacationSchedulesForSameDeviceTimeAndDayAreRejected() {
+        SmartHomeSystem system = createLoggedInOwnerSystem();
+        Device lamp = createSwitch(system);
+        system.createVacationSchedule("Vacation on", lamp.getId(), ScheduleActionType.SET_VALUE, 1.0,
+                LocalTime.of(7, 0), Set.of(DayOfWeek.MONDAY));
+
+        PlanningConflictException exception = assertThrows(
+                PlanningConflictException.class,
+                () -> system.createVacationSchedule("Vacation off", lamp.getId(), ScheduleActionType.SET_VALUE, 0.0,
+                        LocalTime.of(7, 0), Set.of(DayOfWeek.MONDAY))
+        );
+
+        assertTrue(exception.getMessage().contains("Vacation off"));
+        assertEquals(1, system.getVacationSchedules().size());
+    }
+
+    @Test
     public void toggleScheduleConflictsWithSimultaneousExplicitSchedule() {
         SmartHomeSystem system = createLoggedInOwnerSystem();
         Device lamp = createSwitch(system);

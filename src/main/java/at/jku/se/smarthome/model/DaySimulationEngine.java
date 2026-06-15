@@ -68,6 +68,9 @@ public class DaySimulationEngine {
     private void executeDueSchedules(LocalDateTime simulationTime) {
         LocalDate simulationDate = simulationTime.toLocalDate();
         for (Schedule schedule : schedules) {
+            if (schedule.isVacationSchedule()) {
+                continue;
+            }
             if (!schedule.isDue(simulationDate, simulationTime.toLocalTime())) {
                 continue;
             }
@@ -277,7 +280,8 @@ public class DaySimulationEngine {
                     sourceSchedule.getActionType(),
                     sourceSchedule.getTargetValue(),
                     sourceSchedule.getExecutionTime(),
-                    sourceSchedule.getRecurringDays()
+                    sourceSchedule.getRecurringDays(),
+                    sourceSchedule.isVacationSchedule()
             ));
         }
         return copiedSchedules;

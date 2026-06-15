@@ -18,7 +18,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.DatePicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Spinner;
@@ -34,8 +33,6 @@ import javafx.util.Duration;
 
 import java.io.IOException;
 import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.TextStyle;
 import java.util.EnumSet;
@@ -60,39 +57,13 @@ public class ScheduleController {
     @FXML
     private VBox scheduleListContainer;
 
-    @FXML
-    private Label vacationStatusLabel;
-
-    @FXML
-    private ComboBox<ScheduleOption> vacationScheduleBox;
-
-    @FXML
-    private DatePicker vacationStartDatePicker;
-
-    @FXML
-    private DatePicker vacationEndDatePicker;
-
-    @FXML
-    private Spinner<Integer> vacationStartHourSpinner;
-
-    @FXML
-    private Spinner<Integer> vacationStartMinuteSpinner;
-
-    @FXML
-    private Spinner<Integer> vacationEndHourSpinner;
-
-    @FXML
-    private Spinner<Integer> vacationEndMinuteSpinner;
-
     public void initialize() {
         if (!system.isUserLoggedIn()) {
             Platform.runLater(this::openAuthView);
             return;
         }
-        configureVacationModeControls();
         startSchedulePolling();
         refreshScheduleOverview();
-        refreshVacationModeOverview();
     }
 
     @FXML
@@ -118,6 +89,12 @@ public class ScheduleController {
     @FXML
     public void openEnergy() {
         navigateTo("/at/jku/se/smarthome/fxml/energy-view.fxml", 1000, 600, "Failed to open energy view");
+    }
+
+    @FXML
+    public void openVacationMode() {
+        navigateTo("/at/jku/se/smarthome/fxml/vacation-mode-view.fxml", 1000, 600,
+                "Failed to open vacation mode view");
     }
 
     @FXML
@@ -150,48 +127,10 @@ public class ScheduleController {
                     formData.recurringDays()
             );
             refreshScheduleOverview();
-            refreshVacationModeOverview();
         } catch (PlanningConflictException exception) {
             showMessage("Planning conflict", exception.getMessage());
         } catch (IllegalArgumentException | IllegalStateException exception) {
             showMessage("Invalid schedule", exception.getMessage());
-        }
-    }
-
-    @FXML
-    public void activateVacationMode() {
-        ScheduleOption selectedSchedule = vacationScheduleBox.getValue();
-        if (selectedSchedule == null) {
-            showMessage("Vacation mode", "Please select a schedule for vacation mode.");
-            return;
-        }
-        try {
-            LocalDateTime startAt = readVacationDateTime(
-                    vacationStartDatePicker,
-                    vacationStartHourSpinner,
-                    vacationStartMinuteSpinner,
-                    "start"
-            );
-            LocalDateTime endAt = readVacationDateTime(
-                    vacationEndDatePicker,
-                    vacationEndHourSpinner,
-                    vacationEndMinuteSpinner,
-                    "end"
-            );
-            system.activateVacationMode(selectedSchedule.scheduleId(), startAt, endAt);
-            refreshVacationModeOverview();
-        } catch (IllegalArgumentException | IllegalStateException exception) {
-            showMessage("Vacation mode", exception.getMessage());
-        }
-    }
-
-    @FXML
-    public void deactivateVacationMode() {
-        try {
-            system.deactivateVacationMode();
-            refreshVacationModeOverview();
-        } catch (IllegalStateException exception) {
-            showMessage("Vacation mode", exception.getMessage());
         }
     }
 
@@ -258,7 +197,6 @@ public class ScheduleController {
                     formData.recurringDays()
             );
             refreshScheduleOverview();
-            refreshVacationModeOverview();
         } catch (PlanningConflictException exception) {
             showMessage("Planning conflict", exception.getMessage());
         } catch (IllegalArgumentException | IllegalStateException exception) {
@@ -269,89 +207,6 @@ public class ScheduleController {
     private void deleteSchedule(Schedule schedule) {
         system.removeSchedule(schedule.getId());
         refreshScheduleOverview();
-        refreshVacationModeOverview();
-    }
-
-    private void configureVacationModeControls() {
-        vacationStartHourSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(0, 23, 0));
-        vacationStartMinuteSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(0, 59, 0));
-        vacationEndHourSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(0, 23, 23));
-        vacationEndMinuteSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(0, 59, 59));
-        vacationStartHourSpinner.setEditable(true);
-        vacationStartMinuteSpinner.setEditable(true);
-        vacationEndHourSpinner.setEditable(true);
-        vacationEndMinuteSpinner.setEditable(true);
-        vacationStartDatePicker.setValue(LocalDate.now());
-        vacationEndDatePicker.setValue(LocalDate.now().plusDays(7));
-    }
-
-    private void refreshVacationModeOverview() {
-        List<ScheduleOption> scheduleOptions = system.getSchedules().stream()
-                .map(schedule -> new ScheduleOption(schedule.getId(), schedule.getName()))
-                .toList();
-        String selectedScheduleId = vacationScheduleBox.getValue() == null
-                ? null
-                : vacationScheduleBox.getValue().scheduleId();
-        vacationScheduleBox.getItems().setAll(scheduleOptions);
-        selectVacationSchedule(scheduleOptions, selectedScheduleId);
-        updateVacationStatusText();
-    }
-
-    private void selectVacationSchedule(List<ScheduleOption> scheduleOptions, String preferredScheduleId) {
-        if (scheduleOptions.isEmpty()) {
-            return;
-        }
-        for (ScheduleOption scheduleOption : scheduleOptions) {
-            if (scheduleOption.scheduleId().equals(preferredScheduleId)) {
-                vacationScheduleBox.getSelectionModel().select(scheduleOption);
-                return;
-            }
-        }
-        if (system.getVacationMode() != null) {
-            for (ScheduleOption scheduleOption : scheduleOptions) {
-                if (scheduleOption.scheduleId().equals(system.getVacationMode().getScheduleId())) {
-                    vacationScheduleBox.getSelectionModel().select(scheduleOption);
-                    return;
-                }
-            }
-        }
-        vacationScheduleBox.getSelectionModel().selectFirst();
-    }
-
-    private void updateVacationStatusText() {
-        if (system.getVacationMode() == null) {
-            vacationStatusLabel.setText("Vacation mode inactive");
-            return;
-        }
-        Schedule selectedSchedule = system.findScheduleById(system.getVacationMode().getScheduleId());
-        String scheduleName = selectedSchedule == null ? "Unknown schedule" : selectedSchedule.getName();
-        String status = resolveVacationModeStatus();
-        vacationStatusLabel.setText(String.format(
-                Locale.ENGLISH,
-                "Vacation mode %s: %s from %s to %s",
-                status,
-                scheduleName,
-                system.getVacationMode().getStartAt(),
-                system.getVacationMode().getEndAt()
-        ));
-    }
-
-    private String resolveVacationModeStatus() {
-        if (system.isVacationModeActive()) {
-            return "active";
-        }
-        if (system.isVacationModeExpired()) {
-            return "expired";
-        }
-        return "scheduled";
-    }
-
-    private LocalDateTime readVacationDateTime(DatePicker datePicker, Spinner<Integer> hourSpinner,
-                                               Spinner<Integer> minuteSpinner, String fieldName) {
-        if (datePicker.getValue() == null) {
-            throw new IllegalArgumentException("Please select a vacation " + fieldName + " date");
-        }
-        return LocalDateTime.of(datePicker.getValue(), LocalTime.of(hourSpinner.getValue(), minuteSpinner.getValue()));
     }
 
     private Optional<ScheduleFormData> showScheduleDialog(Schedule existingSchedule) {
@@ -687,7 +542,6 @@ public class ScheduleController {
         if (executedSchedules > 0) {
             refreshScheduleOverview();
         }
-        refreshVacationModeOverview();
     }
 
     private void showMessage(String title, String message) {
@@ -731,13 +585,6 @@ public class ScheduleController {
         @Override
         public String toString() {
             return deviceName + " (" + formatDeviceTypeLabel(deviceType) + ")";
-        }
-    }
-
-    private record ScheduleOption(String scheduleId, String scheduleName) {
-        @Override
-        public String toString() {
-            return scheduleName;
         }
     }
 
