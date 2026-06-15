@@ -420,8 +420,8 @@ public class ScheduleTest {
 
         DaySimulationResult result = system.simulateDay(new DaySimulationRequest(
                 LocalDateTime.of(2026, 4, 27, 0, 0),
-                Set.of(),
-                java.util.Map.of()
+                java.util.Map.of(),
+                Set.of()
         ));
 
         Assert.assertTrue(result.getEvents().isEmpty());
