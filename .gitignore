@@ -1,2 +1,5 @@
 # Ignore target folder containing build artifacts
 /target/
+
+# Ignore generated Javadoc output
+/docs/javadoc/

@@ -32,4 +32,4 @@ Testabdeckung:
 
 # JavaDoc für wichtige Klassen, Interfaces und Methoden
 
-[Links zu JavaDoc-Seiten](./docs/javadoc/index.html)
+[Anleitung zum Erstellen der JavaDoc-Dokumentation](./docs/javadoc.md)
