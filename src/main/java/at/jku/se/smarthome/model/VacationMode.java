@@ -45,20 +45,29 @@ public class VacationMode {
     }
 
     private static Set<String> validateScheduleIds(Set<String> scheduleIds) {
+        validateScheduleIdsProvided(scheduleIds);
+        Set<String> normalizedScheduleIds = new LinkedHashSet<>();
+        for (String scheduleId : scheduleIds) {
+            normalizedScheduleIds.add(normalizeScheduleId(scheduleId));
+        }
+        return Collections.unmodifiableSet(normalizedScheduleIds);
+    }
+
+    private static void validateScheduleIdsProvided(Set<String> scheduleIds) {
         if (scheduleIds == null || scheduleIds.isEmpty()) {
             throw new IllegalArgumentException("Vacation schedules must not be empty");
         }
-        Set<String> normalizedScheduleIds = new LinkedHashSet<>();
-        for (String scheduleId : scheduleIds) {
-            if (scheduleId == null || scheduleId.isBlank()) {
-                throw new IllegalArgumentException("Vacation schedule must not be empty");
-            }
-            normalizedScheduleIds.add(scheduleId.trim());
+    }
+
+    private static String normalizeScheduleId(String scheduleId) {
+        if (scheduleId == null) {
+            throw new IllegalArgumentException("Vacation schedule must not be empty");
         }
-        if (normalizedScheduleIds.isEmpty()) {
-            throw new IllegalArgumentException("Vacation schedules must not be empty");
+        String normalizedScheduleId = scheduleId.trim();
+        if (normalizedScheduleId.isEmpty()) {
+            throw new IllegalArgumentException("Vacation schedule must not be empty");
         }
-        return Collections.unmodifiableSet(normalizedScheduleIds);
+        return normalizedScheduleId;
     }
 
     private static LocalDateTime normalizeDateTime(LocalDateTime dateTime, String nullMessage) {
