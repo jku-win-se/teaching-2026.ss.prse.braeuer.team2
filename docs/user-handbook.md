@@ -35,6 +35,8 @@ Nach dem ersten Start wird eine lokale SQLite-Datenbank verwendet, damit Benutze
 
 Beim Start wird zunächst die Authentifizierungsansicht geöffnet. Dort kann ein Benutzer entweder ein neues Konto erstellen oder sich mit bestehenden Zugangsdaten anmelden.
 
+![Login](img/login.png)
+
 ### Dashboard
 
 Das Dashboard ist die zentrale Ansicht von HomeE. Es zeigt Räume, darin enthaltene Geräte und aktuelle Gerätezustände. Über das Dashboard können Eigentümer neue Räume und Geräte erstellen. Geräte können direkt geschaltet oder über Regler verändert werden.
@@ -47,13 +49,19 @@ Unterstützte Gerätetypen:
 - **Sensor:** frei setzbarer Messwert
 - **Jalousie:** offen/geschlossen beziehungsweise Positionswert
 
+![Dashboard](img/dashboard.png)
+
 ### Aktivitätslog
 
 Das Aktivitätslog zeigt Zustandsänderungen im System. Dadurch kann nachvollzogen werden, ob ein Gerät manuell, durch eine Regel, durch einen Zeitplan oder durch eine Szene verändert wurde.
 
+![Aktivitätslog](img/aktivitaet.png)
+
 ### Energieübersicht
 
 Die Energieansicht zeigt geschätzte Verbrauchswerte. Die Daten werden aus den vorhandenen Geräten und Aktivitätsinformationen berechnet und helfen dabei, den Verbrauch einzelner Geräte oder Räume besser einzuschätzen.
+
+![Energieübersicht](img/energie.png)
 
 ### Regeln
 
@@ -73,9 +81,13 @@ Mögliche Aktionen:
 
 HomeE prüft beim Erstellen und Bearbeiten, ob Regeln mit bestehenden Regeln oder Zeitplänen kollidieren.
 
+![Regeln](img/regeln.png)
+
 ### Zeitpläne
 
 Zeitpläne führen Aktionen zu bestimmten Uhrzeiten und an ausgewählten Wochentagen aus. Sie eignen sich zum Beispiel, um Lampen morgens automatisch einzuschalten oder die Heizung abends zu reduzieren.
+
+![Zeitpläne](img/zeitplan.png)
 
 ### Szenen
 
@@ -86,17 +98,25 @@ Beispiele:
 - „Filmabend“: Licht dimmen, Jalousie schließen, Temperatur anpassen.
 - „Guten Morgen“: Jalousie öffnen, Licht einschalten, Thermostat erhöhen.
 
+![Szenen](img/szenen.png)
+
 ### Simulation
 
 Die Tages-Simulation zeigt, welche Zustandsänderungen bei einem simulierten Tagesablauf auftreten würden. Das ist hilfreich, um Regeln und Zeitpläne vorab zu prüfen.
+
+![Simulation](img/simulation.png)
 
 ### Urlaubsmodus
 
 Im Urlaubsmodus können spezielle Urlaubszeitpläne aktiviert werden. Diese Zeitpläne gelten während eines definierten Abwesenheitszeitraums und können normale Zeitpläne übersteuern.
 
+![Urlaubsmodus](img/urluab.png)
+
 ### Mitgliederverwaltung
 
 Eigentümer können weitere Personen per E-Mail als Mitglieder einladen. Eingeladene Mitglieder können nach ihrer Registrierung auf den Haushalt zugreifen. Der Zugriff kann vom Eigentümer wieder widerrufen werden.
+
+![Mitgliederverwaltung](img/mitglieder.png)
 
 ## Nutzungsszenarien
 
