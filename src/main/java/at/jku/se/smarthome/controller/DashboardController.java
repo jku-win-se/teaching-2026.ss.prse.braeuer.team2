@@ -472,8 +472,10 @@ public class DashboardController {
     }
 
     private void deleteRoom(Room room) {
-        system.removeRoom(room.getId());
-        refreshDashboard();
+        if (confirmDeletion("Delete room", "Delete room \"" + room.getName() + "\"?")) {
+            system.removeRoom(room.getId());
+            refreshDashboard();
+        }
     }
 
     private void renameDevice(Device device) {
@@ -494,8 +496,20 @@ public class DashboardController {
     }
 
     private void deleteDevice(Device device) {
-        system.removeDevice(device.getId());
-        refreshDashboard();
+        if (confirmDeletion("Delete device", "Delete device \"" + device.getName() + "\"?")) {
+            system.removeDevice(device.getId());
+            refreshDashboard();
+        }
+    }
+
+    private boolean confirmDeletion(String title, String headerText) {
+        Alert alert = new Alert(AlertType.CONFIRMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(headerText);
+        alert.setContentText("This action cannot be undone.");
+
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 
     private void setSensorValue(Device device) {
