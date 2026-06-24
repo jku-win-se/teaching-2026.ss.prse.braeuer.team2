@@ -185,8 +185,20 @@ public class RuleController {
     }
 
     private void deleteRule(Rule rule) {
+        if (!confirmDeletion("Delete rule", "Delete rule \"" + rule.getName() + "\"?")) {
+            return;
+        }
         system.removeRule(rule.getId());
         refreshRuleOverview();
+    }
+
+    private boolean confirmDeletion(String title, String headerText) {
+        Alert alert = new Alert(AlertType.CONFIRMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(headerText);
+        alert.setContentText("This action cannot be undone.");
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 
     private Optional<RuleFormData> showRuleDialog(Rule existingRule) {

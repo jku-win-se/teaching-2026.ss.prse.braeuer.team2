@@ -181,8 +181,20 @@ public class SceneController {
     }
 
     private void deleteScene(at.jku.se.smarthome.model.Scene scene) {
+        if (!confirmDeletion("Delete scene", "Delete scene \"" + scene.getName() + "\"?")) {
+            return;
+        }
         system.removeScene(scene.getId());
         refreshSceneOverview();
+    }
+
+    private boolean confirmDeletion(String title, String headerText) {
+        Alert alert = new Alert(AlertType.CONFIRMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(headerText);
+        alert.setContentText("This action cannot be undone.");
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 
     private Optional<String> promptSceneName(String existingName) {

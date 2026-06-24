@@ -465,6 +465,10 @@ public class DashboardController {
     }
 
     private void deleteRoom(Room room) {
+        if (!confirmDeletion("Delete room", "Delete room \"" + room.getName() + "\"?",
+                "All devices in this room and related automations will also be removed.")) {
+            return;
+        }
         system.removeRoom(room.getId());
         refreshDashboard();
     }
@@ -487,8 +491,21 @@ public class DashboardController {
     }
 
     private void deleteDevice(Device device) {
+        if (!confirmDeletion("Delete device", "Delete device \"" + device.getName() + "\"?",
+                "Related rules, schedules and scene states will also be removed.")) {
+            return;
+        }
         system.removeDevice(device.getId());
         refreshDashboard();
+    }
+
+    private boolean confirmDeletion(String title, String headerText, String contentText) {
+        Alert alert = new Alert(AlertType.CONFIRMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(headerText);
+        alert.setContentText(contentText);
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 
     private void setSensorValue(Device device) {

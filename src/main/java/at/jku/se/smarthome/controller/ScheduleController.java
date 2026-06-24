@@ -262,9 +262,21 @@ public class ScheduleController {
     }
 
     private void deleteSchedule(Schedule schedule) {
+        if (!confirmDeletion("Delete schedule", "Delete schedule \"" + schedule.getName() + "\"?")) {
+            return;
+        }
         system.removeSchedule(schedule.getId());
         refreshScheduleOverview();
         refreshVacationModeOverview();
+    }
+
+    private boolean confirmDeletion(String title, String headerText) {
+        Alert alert = new Alert(AlertType.CONFIRMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(headerText);
+        alert.setContentText("This action cannot be undone.");
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 
     private void configureVacationModeControls() {
