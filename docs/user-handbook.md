@@ -11,10 +11,19 @@ Es gibt zwei Benutzerrollen:
 
 ## Installation und Start
 
-1. Java 21 und Maven installieren.
-2. Projekt im Terminal öffnen.
-3. Mit `mvn clean package` bauen.
-4. Anwendung starten.
+Die Anwendung wird als ZIP-Datei bereitgestellt und muss vor dem Start vollständig entpackt werden.
+
+Die Anwendung besteht nicht nur aus einer einzelnen JAR-Datei, da zusätzlich externe Bibliotheken benötigt werden. Dazu gehören unter anderem JavaFX für die Benutzeroberfläche sowie weitere Laufzeitabhängigkeiten, die im Ordner `lib` enthalten sind. Damit diese Abhängigkeiten beim Start korrekt gefunden werden, liegen JAR-Datei, `lib`-Ordner und Startdateien gemeinsam in der ZIP-Datei.
+
+**Windows:**  
+Zum Starten der Anwendung die Datei **`Start-HomeE.vbs`** doppelklicken. Alternativ kann **`Start-HomeE.bat`** verwendet werden, falls Konsolenausgaben oder Fehlermeldungen angezeigt werden sollen.
+
+**macOS:**  
+Zum Starten der Anwendung die Datei **`Start-HomeE.command`** ausführen. Falls macOS die Ausführung blockiert, kann im Terminal im entpackten Ordner folgender Befehl ausgeführt werden:
+
+```bash
+chmod +x Start-HomeE.command.
+```
 
 ## Erste Schritte
 
